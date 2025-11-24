@@ -4,166 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>GalagaV</title>
-    <!-- Fonts fall back gracefully if offline -->
+    <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
-    
-    <!-- Tailwind CSS CDN for reliable preview rendering -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      // Optimization: Generate specific class list instead of using broad regex to prevent Main Thread freezes
-      const colors = ['slate', 'red', 'orange', 'amber', 'yellow', 'lime', 'green', 'emerald', 'teal', 'cyan', 'sky', 'blue', 'indigo', 'violet', 'purple', 'fuchsia', 'pink', 'rose'];
-      const safelist = [];
-      
-      colors.forEach(c => {
-        // Backgrounds
-        safelist.push(`bg-${c}-50`);
-        safelist.push(`bg-${c}-100`);
-        safelist.push(`bg-${c}-500`);
-        safelist.push(`bg-${c}-600`);
-        safelist.push(`hover:bg-${c}-500`);
-        safelist.push(`hover:bg-${c}-600`);
-        
-        // Dark Mode Backgrounds & Opacities
-        safelist.push(`dark:bg-${c}-900`);
-        safelist.push(`dark:bg-${c}-950`);
-        safelist.push(`dark:bg-${c}-950/20`);
-        safelist.push(`dark:bg-${c}-950/30`);
-        safelist.push(`dark:bg-${c}-950/50`);
-        
-        // Text
-        safelist.push(`text-${c}-400`);
-        safelist.push(`text-${c}-500`);
-        safelist.push(`text-${c}-600`);
-        safelist.push(`text-${c}-700`);
-        safelist.push(`hover:text-${c}-500`);
-        safelist.push(`hover:text-${c}-400`);
-        safelist.push(`dark:text-${c}-300`);
-        safelist.push(`dark:text-${c}-400`);
-        safelist.push(`dark:text-${c}-500`);
-
-        // Borders
-        safelist.push(`border-${c}-200`);
-        safelist.push(`border-${c}-300`);
-        safelist.push(`border-${c}-400`);
-        safelist.push(`border-${c}-500`);
-        safelist.push(`hover:border-${c}-400`);
-        safelist.push(`hover:border-${c}-500`);
-        
-        // Dark Borders
-        safelist.push(`dark:border-${c}-500/30`);
-        safelist.push(`dark:border-${c}-500/50`);
-        safelist.push(`dark:border-${c}-700`);
-        safelist.push(`dark:border-${c}-800`);
-
-        // Rings
-        safelist.push(`ring-${c}-300`);
-        safelist.push(`ring-${c}-500`);
-        safelist.push(`focus:ring-${c}-500`);
-      });
-
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Orbitron', 'sans-serif'],
-              mono: ['monospace'],
-            },
-            animation: {
-              'bounce-slow': 'bounce 3s infinite',
-            }
-          },
-        },
-        safelist: safelist
-      }
-    </script>
-    <style type="text/tailwindcss">
-      @layer base {
-        body {
-          font-family: 'Orbitron', sans-serif;
-          @apply bg-slate-50 text-slate-900 overflow-hidden;
-        }
-    
-        .dark body {
-          @apply bg-[#050505] text-white;
-        }
-      }
-    
-      .font-arcade {
-        font-family: 'Press Start 2P', cursive;
-      }
-    
-      /* CRT Effect Scanlines - Only visible in dark mode */
-      .scanlines {
-        display: none;
-        pointer-events: none;
-        z-index: 50;
-      }
-    
-      .dark .scanlines {
-        display: block;
-        background: linear-gradient(
-          to bottom,
-          rgba(255,255,255,0),
-          rgba(255,255,255,0) 50%,
-          rgba(0,0,0,0.2) 50%,
-          rgba(0,0,0,0.2)
-        );
-        background-size: 100% 4px;
-        position: fixed;
-        top: 0; left: 0; right: 0; bottom: 0;
-      }
-    
-      /* Custom Scrollbar - Light Mode Defaults */
-      ::-webkit-scrollbar {
-        width: 10px;
-        height: 10px;
-      }
-      ::-webkit-scrollbar-track {
-        background: #f1f5f9; 
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #cbd5e1; 
-        border-radius: 5px;
-        border: 2px solid #f1f5f9;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #06b6d4; 
-      }
-    
-      /* Dark Mode Scrollbar Overrides */
-      .dark ::-webkit-scrollbar-track {
-        background: #020617; 
-      }
-      .dark ::-webkit-scrollbar-thumb {
-        background: #1e293b; 
-        border: 2px solid #020617;
-      }
-    
-      /* Utility for inner content areas */
-      .custom-scrollbar::-webkit-scrollbar {
-        width: 6px;
-      }
-      .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
-      }
-      .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: #334155;
-      }
-    </style>
-
   <script type="importmap">
 {
   "imports": {
-    "vite": "https://aistudiocdn.com/vite@^7.2.4",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
     "react": "https://aistudiocdn.com/react@^19.2.0",
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
     "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/",
     "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0"
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
+    "vite": "https://aistudiocdn.com/vite@^7.2.4",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1"
   }
 }
 </script>
@@ -171,7 +24,6 @@
   <body>
     <div id="root"></div>
     <div class="scanlines"></div>
-    <!-- CRITICAL: Vite Entry Point - Use simple path to ensure resolution -->
-    <script type="module" src="index.tsx"></script>
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>
