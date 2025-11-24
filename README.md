@@ -22,99 +22,107 @@ A modern, arcade-themed project management dashboard built with React, TypeScrip
 ### Prerequisites
 
 -   [Node.js](https://nodejs.org/) (v16 or higher)
--   npm or yarn
+-   npm (comes with Node.js) or yarn
 
-### 1. Clone or Download
-Extract the project files to a directory of your choice.
-
-```bash
-cd galagav
-```
+### 1. Download Source
+Ensure you have all project files (including `package.json`, `vite.config.ts`, `index.html`, and the `src` folder) in a directory.
 
 ### 2. Install Dependencies
-Run the following command to install the required React and build libraries:
+Open your terminal/command prompt in the project folder and run:
 
 ```bash
 npm install
-# or
-yarn install
 ```
 
-### 3. Run Locally (Development Mode)
-Start the local development server. This will run the app at `http://localhost:5173` (by default).
+### 3. Run Locally
+Start the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
+```
+
+The terminal will show a URL (usually `http://localhost:5173`). Open this in your browser.
+
+---
+
+## ⚙️ Changing the Port
+
+If port `5173` is busy or you want to use a specific port (e.g., `3000`), you can do so in two ways:
+
+### Method 1: Command Line (Temporary)
+Run the dev command with the `--port` flag:
+
+```bash
+npm run dev -- --port 3000
+```
+
+### Method 2: Config File (Permanent)
+1.  Open `vite.config.ts` in the root directory.
+2.  Locate the `server` block.
+3.  Change the `port` value.
+
+```typescript
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 3000, // <--- Change this number
+    host: true,
+  }
+});
 ```
 
 ---
 
-## 📦 Building for Production (Offline / Static Hosting)
+## ❓ Troubleshooting / Not Working?
 
-To deploy this app to a static host (like Vercel, Netlify, GitHub Pages) or run it as a standalone offline web app:
+If you run `npm run dev` and it's not working, check the following:
 
-1.  **Build the project:**
+**1. "command not found"**
+*   Ensure Node.js is installed. Type `node -v` in your terminal. It should print a version number (e.g., `v18.x.x`).
+
+**2. White Screen / Blank Page**
+*   Check the browser console (F12 -> Console).
+*   If you see errors about "imports", ensure you ran `npm install`.
+
+**3. "Address already in use"**
+*   The port is taken. See the "Changing the Port" section above.
+
+**4. Styles looking wrong?**
+*   The app uses Tailwind CSS. The `index.html` includes a CDN link for quick prototypes, but `package.json` includes tailwind for production builds. If offline, the CDN link won't load.
+*   **Fix:** Ensure you are connected to the internet for the first run, or setup a local Tailwind build process (included in `npm run build`).
+
+---
+
+## 📦 Building for Production
+
+To create a static version of the app (HTML/CSS/JS) that you can upload to any web host:
+
+1.  Run the build command:
     ```bash
     npm run build
     ```
 
-2.  **Locate the Output:**
-    The compiled files will be in the `dist/` folder.
-
-3.  **Run/Deploy:**
-    -   **Web Server:** Upload the contents of `dist/` to any static web server.
-    -   **Local Preview:** To preview the build locally:
-        ```bash
-        npm run preview
-        ```
+2.  The output files will be created in the `dist/` folder.
+3.  Upload the contents of `dist/` to your web server (Netlify, Vercel, Apache, Nginx, etc.).
 
 ---
 
-## 🔑 Environment Configuration (Optional)
+## 🔑 Environment Variables (Optional)
 
-The application runs 100% offline by default using LocalStorage. However, if you want to enable the **Game High Scores** or **AI Features**, you need to configure environment variables.
-
-Create a `.env` file in the root directory:
+Create a `.env` file in the root directory to enable external services:
 
 ```env
 # Firebase Configuration (For Global High Scores)
-VITE_FIREBASE_API_KEY=your_api_key
+VITE_FIREBASE_API_KEY=your_key
 VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=your_project_id
-VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-VITE_FIREBASE_APP_ID=your_app_id
+...
 
 # Google Gemini API (For AI Callsign Generation)
-VITE_GEMINI_API_KEY=your_gemini_api_key
+VITE_GEMINI_API_KEY=your_key
 ```
-
-*Note: If these keys are missing, the app will gracefully fall back to local storage for scores and a dummy generator for callsigns.*
-
----
-
-## 📂 Project Structure
-
--   `/src`
-    -   `/components` - UI components (ProjectList, ProjectDetail, etc.)
-    -   `/hooks` - Game logic (useGameLoop)
-    -   `/services` - API interactions (Firebase, Gemini)
-    -   `App.tsx` - Main application controller
-    -   `types.ts` - TypeScript interfaces
-
----
-
-## 🎮 Keyboard Shortcuts & Accessibility
-
--   **Tab**: Navigate through projects and tasks.
--   **Enter/Space**: Select a project or toggle a task.
--   **Esc**: Close modals (Settings, Confirmation).
--   **Drag & Drop**: Reorder tasks or nest them as sub-tasks by dragging one card onto another.
 
 ---
 
 ## 📄 License
 
-This project is open-source. Feel free to modify and distribute.
+MIT License. See LICENSE.md for details.
