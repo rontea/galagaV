@@ -648,7 +648,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
       title: '', // Empty default so placeholder shows and user can type immediately
       category: 'frontend',
       status: 'pending',
-      content: 'Describe the task requirements...',
+      content: '', // Empty default so placeholder shows and user can type immediately
       history: [],
       subSteps: []
     };
