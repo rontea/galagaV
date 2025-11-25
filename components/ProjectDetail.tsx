@@ -11,6 +11,39 @@ import {
   RefreshCw, FileWarning, StickyNote, Files
 } from 'lucide-react';
 
+// --- Utility: Robust Copy to Clipboard ---
+const copyToClipboard = async (text: string): Promise<boolean> => {
+  if (!text) return false;
+
+  try {
+    // Try Modern API
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (err) {
+    console.warn("Clipboard API failed, trying fallback...", err);
+  }
+
+  // Fallback for older browsers or non-secure contexts
+  try {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-9999px";
+    textArea.style.top = "0";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    const result = document.execCommand('copy');
+    document.body.removeChild(textArea);
+    return result;
+  } catch (err) {
+    console.error("Copy failed", err);
+    return false;
+  }
+};
+
 // --- Constants ---
 interface CategoryStyle {
   color: string;
@@ -118,7 +151,7 @@ const HistoryItem: React.FC<{ version: StepVersion; index: number }> = ({ versio
                
                <div className="bg-slate-50 dark:bg-black/30 rounded p-2 border border-slate-200 dark:border-slate-800">
                   <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Snapshot Content</span>
-                  <p className="text-xs text-slate-700 dark:text-slate-400 font-mono whitespace-pre-wrap leading-relaxed">
+                  <p className="text-xs text-slate-700 dark:text-slate-400 font-mono whitespace-pre-wrap leading-relaxed break-words">
                     {version.content}
                   </p>
                </div>
@@ -161,6 +194,13 @@ const SubStepCard: React.FC<{
     setFormData(step);
   }, [step]);
 
+  // Auto-edit if new/empty
+  useEffect(() => {
+    if (!step.title && !step.content) {
+        setIsEditing(true);
+    }
+  }, []);
+
   const style = categories[step.category] || categories.frontend || BASE_CATEGORIES.frontend;
   const Icon = style.icon;
   
@@ -189,12 +229,10 @@ const SubStepCard: React.FC<{
   };
 
   const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(step.content);
+    const success = await copyToClipboard(step.content);
+    if (success) {
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy sub-task content:', err);
     }
   };
 
@@ -399,7 +437,7 @@ const SubStepCard: React.FC<{
         {!isEditing && expanded && (
             <div className="px-3 pb-3 pt-0 animate-in fade-in slide-in-from-top-1">
             <div className="border-t border-slate-200 dark:border-slate-800/50 pt-3 mt-1">
-                <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-light leading-relaxed mb-3 pl-1">
+                <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-light leading-relaxed mb-3 pl-1 break-words">
                 {step.content}
                 </p>
                 <div className="flex justify-end gap-2 border-t border-slate-200 dark:border-slate-800/30 pt-2">
@@ -740,6 +778,25 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
     });
   };
 
+  const handleAddSubStep = (parentId: string) => {
+    const updatedSteps = project.steps.map(s => {
+      if (s.id === parentId) {
+        const newSub: Step = {
+          id: `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          title: '',
+          category: s.category, 
+          status: 'pending',
+          content: '',
+          subSteps: []
+        };
+        const currentSubs = s.subSteps || [];
+        return { ...s, subSteps: [...currentSubs, newSub] };
+      }
+      return s;
+    });
+    onUpdateProject({ ...project, steps: updatedSteps });
+  };
+
   const handleRestoreStep = (stepId: string) => {
     onUpdateProject({
       ...project,
@@ -823,12 +880,10 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
 
   const handleSmartCopy = async (step: Step) => {
     const fullPrompt = `${project.systemPrompt}\n\n${step.content}`;
-    try {
-      await navigator.clipboard.writeText(fullPrompt);
+    const success = await copyToClipboard(fullPrompt);
+    if (success) {
       setCopiedStepId(step.id);
       setTimeout(() => setCopiedStepId(null), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
     }
   };
 
@@ -857,6 +912,15 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
   const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
     if (draggedIndex === null || draggedIndex === index) return;
+
+    // FIX: Prevent nesting if the target card is currently being edited
+    // This avoids the issue where dropping a task into an editing card makes it "disappear"
+    // because the edit view doesn't render sub-tasks.
+    const targetStepId = project.steps[index].id;
+    if (targetStepId === editingStepId) {
+      setDragTarget({ index, type: 'gap' });
+      return;
+    }
 
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const y = e.clientY - rect.top;
@@ -1323,7 +1387,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
             <div className="flex flex-col gap-6">
               <div>
                 <h2 className="text-xs font-mono text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] mb-3">Mission Brief</h2>
-                <p className="text-xl text-slate-700 dark:text-slate-100 leading-relaxed font-light">
+                <p className="text-xl text-slate-700 dark:text-slate-100 leading-relaxed font-light break-words">
                   {project.description}
                 </p>
               </div>
@@ -1332,7 +1396,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                  <div className="flex items-center justify-between mb-3">
                     <h2 className="text-xs font-mono text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">Active Context</h2>
                  </div>
-                <div className="bg-slate-50 dark:bg-black/60 rounded-lg p-5 border border-slate-200 dark:border-slate-800/60 font-mono text-xs sm:text-sm text-emerald-600 dark:text-emerald-500/80 whitespace-pre-wrap shadow-inner max-h-40 overflow-y-auto custom-scrollbar">
+                <div className="bg-slate-50 dark:bg-black/60 rounded-lg p-5 border border-slate-200 dark:border-slate-800/60 font-mono text-xs sm:text-sm text-emerald-600 dark:text-emerald-500/80 whitespace-pre-wrap shadow-inner max-h-40 overflow-y-auto custom-scrollbar break-words">
                   {project.systemPrompt}
                 </div>
               </div>
@@ -1593,7 +1657,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                           </div>
 
                           <div className="flex-grow">
-                            <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-light whitespace-pre-wrap font-mono">
+                            <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-light whitespace-pre-wrap font-mono break-words">
                               {step.content}
                             </p>
                           </div>
@@ -1607,7 +1671,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                               <div className="space-y-1">
                                 {step.subSteps.map((sub, subIdx) => (
                                   <SubStepCard 
-                                    key={subIdx} 
+                                    key={sub.id} 
                                     step={sub}
                                     index={subIdx}
                                     parentId={step.id} 
@@ -1686,6 +1750,15 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                               >
                                 <Files size={16} aria-hidden="true" />
                                 <span className="text-xs font-bold uppercase hidden sm:inline">Duplicate</span>
+                              </button>
+
+                              <button 
+                                onClick={() => handleAddSubStep(step.id)}
+                                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-950/80 text-slate-500 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-all border border-transparent hover:border-cyan-200 dark:hover:border-cyan-900/30"
+                                title="Add Sub-Task"
+                              >
+                                <GitBranch size={16} aria-hidden="true" />
+                                <span className="text-xs font-bold uppercase hidden sm:inline">Sub-Task</span>
                               </button>
 
                               <button 
