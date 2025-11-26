@@ -210,7 +210,8 @@ const SubStepCard: React.FC<{
 
   // Compact Logic
   const isCompleted = step.status === 'completed';
-  const showCompact = isCompleted && !expanded && !isEditing;
+  const isFailed = step.status === 'failed';
+  const showCompact = (isCompleted || isFailed) && !expanded && !isEditing;
 
   const updateField = (field: keyof Step, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -258,7 +259,9 @@ const SubStepCard: React.FC<{
         border rounded-lg bg-white dark:bg-slate-900/60 transition-all duration-200
         ${expanded || isEditing ? 'border-slate-300 dark:border-slate-700 shadow-xl' : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-600'}
         ${isEditing ? 'ring-1 ring-cyan-500/30' : ''}
-        ${showCompact ? 'border-emerald-200 dark:border-emerald-900/30 hover:border-emerald-400/30' : ''}
+        ${showCompact 
+            ? (isFailed ? 'border-red-200 dark:border-red-900/30 hover:border-red-400/30' : 'border-emerald-200 dark:border-emerald-900/30 hover:border-emerald-400/30') 
+            : ''}
       `}>
         {isEditing ? (
           // --- EDIT MODE ---
@@ -335,7 +338,7 @@ const SubStepCard: React.FC<{
              </div>
           </div>
         ) : showCompact ? (
-          // --- COMPACT COMPLETED VIEW ---
+          // --- COMPACT COMPLETED/FAILED VIEW ---
           <div 
              className="flex items-center justify-between p-3 gap-2 cursor-pointer group/subcompact"
              onClick={() => setExpanded(true)}
@@ -348,18 +351,18 @@ const SubStepCard: React.FC<{
                  <div className="flex-shrink-0 cursor-grab active:cursor-grabbing text-slate-300 dark:text-slate-700">
                     <GripVertical size={14} aria-hidden="true" />
                  </div>
-                 <div className="p-1 rounded bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900">
-                    <Check size={12} aria-hidden="true" />
+                 <div className={`p-1 rounded ${isFailed ? 'bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-900' : 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900'}`}>
+                    {isFailed ? <AlertOctagon size={12} aria-hidden="true" /> : <Check size={12} aria-hidden="true" />}
                  </div>
-                 <span className="text-sm font-bold text-slate-400 dark:text-slate-500 line-through decoration-slate-300 dark:decoration-slate-600">
+                 <span className={`text-sm font-bold text-slate-400 dark:text-slate-500 line-through ${isFailed ? 'decoration-red-500 dark:decoration-red-400' : 'decoration-slate-300 dark:decoration-slate-600'}`}>
                     {step.title}
                  </span>
-                 <div className="hidden sm:inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-900/30">
+                 <div className={`hidden sm:inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border ${isFailed ? 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900/30' : 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/30'}`}>
                     <StatusIcon size={10} aria-hidden="true" />
-                    <span>Completed</span>
+                    <span>{statusConfig.label}</span>
                  </div>
              </div>
-             <div className="text-slate-300 group-hover/subcompact:text-emerald-500 transition-colors">
+             <div className={`text-slate-300 transition-colors ${isFailed ? 'group-hover/subcompact:text-red-500' : 'group-hover/subcompact:text-emerald-500'}`}>
                 <Maximize2 size={14} aria-hidden="true" />
              </div>
           </div>
@@ -405,7 +408,7 @@ const SubStepCard: React.FC<{
                     </div>
                   </div>
                   {!expanded && (
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate font-mono mt-1 opacity-90">
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate font-mono mt-1 opacity-90 break-words">
                       {step.content.substring(0, 50)}{step.content.length > 50 ? '...' : ''}
                     </p>
                   )}
@@ -911,16 +914,17 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
 
   const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
-    if (draggedIndex === null || draggedIndex === index) return;
+    
+    // Must be dragging something (Main Task OR Sub Task)
+    if (draggedIndex === null && !draggedSubTask) return;
+    
+    // If dragging Main Task, don't drag on self
+    if (draggedIndex === index) return;
 
-    // FIX: Prevent nesting if the target card is currently being edited
-    // This avoids the issue where dropping a task into an editing card makes it "disappear"
-    // because the edit view doesn't render sub-tasks.
     const targetStepId = project.steps[index].id;
-    if (targetStepId === editingStepId) {
-      setDragTarget({ index, type: 'gap' });
-      return;
-    }
+    
+    // Restrict nesting if editing
+    const isTargetEditing = targetStepId === editingStepId;
 
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const y = e.clientY - rect.top;
@@ -929,7 +933,12 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
     const isShrunkTarget = height < 80; 
     
     const threshold = 20; 
-    if (y < threshold || y > height - threshold || isShrunkTarget) {
+    
+    // Decision Logic for Drop Target Type
+    // If we are editing the target, we CANNOT nest (sub-list is hidden), so force gap.
+    // If dragging sub-task, we can nest or promote (gap).
+    
+    if (isTargetEditing || y < threshold || y > height - threshold || isShrunkTarget) {
        setDragTarget({ index, type: 'gap' });
     } else {
        setDragTarget({ index, type: 'card' });
@@ -937,37 +946,75 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
   };
 
   const handleDrop = (dropIndex: number) => {
-    if (draggedIndex === null || draggedIndex === dropIndex) return;
-
-    const updatedSteps = [...project.steps];
+    // Case 1: Dragging a Main Task (Existing Logic)
+    if (draggedIndex !== null) {
+        if (draggedIndex === dropIndex) return;
+        
+        const updatedSteps = [...project.steps];
+        
+        if (dragTarget?.type === 'card') {
+           // NESTING LOGIC
+           const [movedStep] = updatedSteps.splice(draggedIndex, 1);
+           
+           let targetIdx = dropIndex;
+           if (draggedIndex < dropIndex) {
+             targetIdx--; 
+           }
+           
+           const targetStep = updatedSteps[targetIdx];
+           
+           if (targetStep) {
+             if (!targetStep.subSteps) targetStep.subSteps = [];
+             targetStep.subSteps.push(movedStep);
+           } else {
+             updatedSteps.splice(dropIndex, 0, movedStep);
+           }
     
-    if (dragTarget?.type === 'card') {
-       // NESTING LOGIC
-       const [movedStep] = updatedSteps.splice(draggedIndex, 1);
-       
-       let targetIdx = dropIndex;
-       if (draggedIndex < dropIndex) {
-         targetIdx--; 
-       }
-       
-       const targetStep = updatedSteps[targetIdx];
-       
-       if (targetStep) {
-         if (!targetStep.subSteps) targetStep.subSteps = [];
-         targetStep.subSteps.push(movedStep);
-       } else {
-         updatedSteps.splice(dropIndex, 0, movedStep);
-       }
-
-    } else {
-       // REORDERING LOGIC
-       const [movedStep] = updatedSteps.splice(draggedIndex, 1);
-       updatedSteps.splice(dropIndex, 0, movedStep);
+        } else {
+           // REORDERING LOGIC
+           const [movedStep] = updatedSteps.splice(draggedIndex, 1);
+           updatedSteps.splice(dropIndex, 0, movedStep);
+        }
+    
+        onUpdateProject({ ...project, steps: updatedSteps });
+        setDraggedIndex(null);
+        setDragTarget(null);
+        return;
     }
 
-    onUpdateProject({ ...project, steps: updatedSteps });
-    setDraggedIndex(null);
-    setDragTarget(null);
+    // Case 2: Dragging a Sub-Task
+    if (draggedSubTask) {
+        const { parentId: sourceParentId, index: sourceIndex } = draggedSubTask;
+        const updatedSteps = [...project.steps];
+
+        // 1. Find and remove from source
+        const sourceParent = updatedSteps.find(s => s.id === sourceParentId);
+        if (!sourceParent || !sourceParent.subSteps) return;
+
+        // Extract the item
+        const [movedItem] = sourceParent.subSteps.splice(sourceIndex, 1);
+
+        // 2. Place in target
+        if (dragTarget?.type === 'card') {
+            // Nest into the target Main Task (Move Sub-Task to another parent)
+            const targetStep = updatedSteps[dropIndex];
+            if (targetStep) {
+                if (!targetStep.subSteps) targetStep.subSteps = [];
+                targetStep.subSteps.push(movedItem);
+            } else {
+                // Fallback: Restore item to source if target missing
+                sourceParent.subSteps.splice(sourceIndex, 0, movedItem);
+                return;
+            }
+        } else {
+            // 'gap' -> Promote to Main Task at dropIndex (Insert as root step)
+            updatedSteps.splice(dropIndex, 0, movedItem);
+        }
+
+        onUpdateProject({ ...project, steps: updatedSteps });
+        setDraggedSubTask(null);
+        setDragTarget(null); // Clear main drag target
+    }
   };
 
   // --- Drag and Drop Handlers (Sub Tasks) ---
@@ -1434,7 +1481,8 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
 
               // SHRUNK LOGIC: If completed and NOT expanded and NOT editing
               const isCompleted = step.status === 'completed';
-              const isShrunk = isCompleted && !expandedCompletedSteps[step.id] && !isEditing;
+              const isFailed = step.status === 'failed';
+              const isShrunk = (isCompleted || isFailed) && !expandedCompletedSteps[step.id] && !isEditing;
 
               return (
                 <div 
@@ -1493,7 +1541,10 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                     {/* MAIN CARD */}
                     <div className={`
                       relative rounded-xl border transition-all duration-300
-                      ${step.status === 'failed' ? 'border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/10' : (isShrunk ? 'bg-white dark:bg-slate-950/30 border-emerald-200 dark:border-emerald-900/30 hover:border-emerald-400/30' : `${style.border} bg-white dark:bg-slate-900/40`)} 
+                      ${isShrunk 
+                        ? (isFailed ? 'bg-white dark:bg-slate-950/30 border-red-200 dark:border-red-900/30 hover:border-red-400/30' : 'bg-white dark:bg-slate-950/30 border-emerald-200 dark:border-emerald-900/30 hover:border-emerald-400/30')
+                        : (step.status === 'failed' ? 'border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/10' : `${style.border} bg-white dark:bg-slate-900/40`)
+                      } 
                       ${isEditing ? 'bg-white dark:bg-slate-900/90 shadow-2xl ring-1 ring-cyan-500/50' : (isShrunk ? 'shadow-sm' : 'hover:bg-slate-50 dark:hover:bg-slate-900/60 hover:shadow-lg')}
                       ${isDragTargetCard ? 'border-indigo-500 ring-2 ring-indigo-500/50' : ''}
                       ${isShrunk ? 'p-3 sm:p-4' : 'p-6 sm:p-7'}
@@ -1590,20 +1641,20 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                            aria-expanded={false}
                         >
                            <div className="flex items-center gap-4">
-                              <div className={`p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-900 text-emerald-600`}>
+                              <div className={`p-1.5 rounded-lg bg-white dark:bg-slate-900 border ${isFailed ? 'border-red-200 dark:border-red-900 text-red-600' : 'border-emerald-200 dark:border-emerald-900 text-emerald-600'}`}>
                                  <Icon size={16} aria-hidden="true" />
                               </div>
                               <div>
-                                 <h3 className="text-sm font-bold text-slate-400 dark:text-slate-400 group-hover/shrunk:text-emerald-500 dark:group-hover/shrunk:text-emerald-400 transition-colors line-through decoration-slate-300 dark:decoration-slate-700">
+                                 <h3 className={`text-sm font-bold text-slate-400 dark:text-slate-400 transition-colors line-through ${isFailed ? 'decoration-red-500 dark:decoration-red-500 group-hover/shrunk:text-red-500 dark:group-hover/shrunk:text-red-400' : 'decoration-slate-300 dark:decoration-slate-700 group-hover/shrunk:text-emerald-500 dark:group-hover/shrunk:text-emerald-400'}`}>
                                     {step.title}
                                  </h3>
                               </div>
-                              <div className="hidden sm:flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-900/30">
+                              <div className={`hidden sm:flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded border ${isFailed ? 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900/30' : 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/30'}`}>
                                  <StatusIcon size={10} aria-hidden="true" />
-                                 <span>Completed</span>
+                                 <span>{statusConfig.label}</span>
                               </div>
                            </div>
-                           <div className="text-slate-400 dark:text-slate-700 group-hover/shrunk:text-emerald-500 transition-colors" title="Expand Task">
+                           <div className={`text-slate-400 dark:text-slate-700 ${isFailed ? 'group-hover/shrunk:text-red-500' : 'group-hover/shrunk:text-emerald-500'} transition-colors`} title="Expand Task">
                               <Maximize2 size={16} aria-hidden="true" />
                            </div>
                         </div>
@@ -1640,12 +1691,12 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                               </div>
                             </div>
                             <div className="flex items-start gap-2">
-                               {isCompleted && (
+                               {(isCompleted || isFailed) && (
                                   <button 
                                     onClick={() => toggleCompletedStep(step.id)}
-                                    className="p-2 text-slate-400 dark:text-slate-600 hover:text-emerald-500 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-900 rounded transition-colors"
-                                    title="Minimize (Completed)"
-                                    aria-label="Minimize completed task"
+                                    className={`p-2 text-slate-400 dark:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-900 rounded transition-colors ${isFailed ? 'hover:text-red-500 dark:hover:text-red-400' : 'hover:text-emerald-500 dark:hover:text-emerald-400'}`}
+                                    title={`Minimize (${isFailed ? 'Failed' : 'Completed'})`}
+                                    aria-label="Minimize task"
                                   >
                                      <Minimize2 size={16} aria-hidden="true" />
                                   </button>

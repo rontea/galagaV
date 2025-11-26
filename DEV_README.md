@@ -28,22 +28,33 @@ The core value proposition is the timeline view for managing tasks.
 
 *   **Timeline Visualization**:
     *   Vertical timeline with drag-and-drop reordering.
-    *   **Visual Statuses**: Tasks change appearance based on status (e.g., Green for Completed, Red for Failed/Blocked).
-    *   **Compact Mode**: Completed tasks automatically shrink to save screen space but can be expanded on click.
+    *   **Visual Statuses**: Tasks change appearance based on status.
+    *   **Compact Mode**:
+        *   **Completed**: Shrinks to a minimalist green checkmark row.
+        *   **Failed**: Shrinks to a high-visibility red strikethrough row.
+    *   **Sub-Task Numbering**: Visual indexing (#1, #2) for nested requirements.
+    *   **Text Overflow**: Automatic word wrapping for long URLs or code snippets.
 
 *   **Drag & Drop Power**:
     *   **Reorder**: Drag main tasks to reorder them in the list.
     *   **Nesting**: Drag a main task *onto* another task to convert it into a **Sub-Task** automatically.
-    *   **Sub-Task Sorting**: Drag sub-tasks to reorder them within a parent or move them to a different parent task.
+    *   **Sub-Task Flexibility**:
+        *   **Sort**: Reorder sub-tasks within a list.
+        *   **Move**: Drag a sub-task onto a different Main Task card to move it there.
+        *   **Promote**: Drag a sub-task into the **gap** between Main Tasks to convert it into a top-level task.
+        *   *Safety*: Prevents nesting into tasks currently in "Edit Mode" to avoid UI confusion.
 
 *   **Task Operations**:
-    *   **Quick Add**: One-click creation of new tasks.
-    *   **Sub-Tasks**: Add unlimited nested sub-tasks with their own status tracking.
-    *   **Promote**: Convert a sub-task back into a main timeline task.
-    *   **Duplicate**: Clone a task (and its sub-tasks) to create templates.
-    *   **Smart Copy**: Copy task content to clipboard (includes intelligent fallback for older browsers).
-    *   **Quick Notes**: Sticky-note style scratchpad attached to every task.
-    *   **History/Versioning**: Track previous attempts or iterations of a task (UI supports expanding history branches).
+    *   **Quick Add**: One-click creation. New tasks start empty and **auto-focus** for immediate typing.
+    *   **Click-to-Edit**: Edit Main Task titles directly in view mode without opening the full editor.
+    *   **Sub-Tasks**:
+        *   **Auto-Edit**: New sub-tasks automatically enter edit mode.
+        *   **Copy Details**: Dedicated button to copy sub-task content.
+        *   **Compact View**: Completed/Failed sub-tasks also shrink to save space.
+    *   **Duplicate**: Clone a task (and all its sub-tasks) to create templates.
+    *   **Smart Copy**: Robust clipboard utility with fallback for older browsers/contexts.
+    *   **Quick Notes**: Sticky-note style scratchpad attached to every task for quick annotations.
+    *   **History/Versioning**: Track previous attempts or iterations of a task.
 
 ### 3. The Game (Galaga Clone)
 A hidden or integrated "Break Time" feature.

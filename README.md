@@ -1,14 +1,37 @@
 # GalagaV - Project Dashboard & Game
 
+![Status](https://img.shields.io/badge/Status-In--Development-orange) ![Version](https://img.shields.io/badge/Version-v0.8.0--alpha-blue)
+
 A modern, arcade-themed project management dashboard built with React, TypeScript, and Tailwind CSS. Originally designed as a dashboard for a Galaga Clone game, it has evolved into a fully functional task management tool with sub-tasks, history tracking, and JSON import/export capabilities.
 
 ![GalagaV Screenshot](https://via.placeholder.com/800x450?text=GalagaV+Dashboard)
 
 ## 🚀 Features
 
--   **Project Management**: Create, edit, and archive projects.
--   **Task Timeline**: Drag-and-drop reordering, nesting (sub-tasks), and history tracking.
--   **Customization**: Light/Dark modes, custom project icons, status colors, and categories.
+### 📋 Project & Task Management
+-   **Timeline Visualization**: Vertical timeline with drag-and-drop reordering.
+-   **Advanced Drag & Drop**:
+    -   **Nest**: Drag a main task onto another to instantly convert it into a sub-task.
+    -   **Promote**: Drag a sub-task into the main timeline to make it a top-level task.
+    -   **Sort**: Reorder sub-tasks freely within their parent or move them to other parents.
+-   **Sub-Task Power**:
+    -   **Numbering**: Auto-indexed sub-tasks (e.g., #1, #2).
+    -   **Compact View**: Completed and Failed sub-tasks shrink to save space.
+    -   **Auto-Edit**: New sub-tasks open immediately in edit mode for rapid entry.
+-   **Productivity Tools**:
+    -   **Quick Notes**: Sticky-note style scratchpad attached to every task.
+    -   **Duplicate**: One-click deep copy of tasks and their sub-structures.
+    -   **Click-to-Edit**: Update task titles directly in the view mode.
+    -   **Smart Copy**: Robust clipboard actions for task details.
+
+### 🎨 Customization & Visuals
+-   **Visual States**:
+    -   **Completed**: Minimalist green checkmark row.
+    -   **Failed**: High-visibility red strikethrough row.
+-   **Themes**: Light/Dark modes (CRT Scanline effect in Dark mode).
+-   **Configurable**: Custom project icons, status colors, and categories.
+
+### 💾 Data & Offline
 -   **Data Portability**: Export projects to JSON and import them anywhere.
 -   **Offline First**: Works completely offline using LocalStorage.
 -   **Optional Integrations**:
