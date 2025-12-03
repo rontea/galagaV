@@ -189,6 +189,7 @@ const SubStepCard: React.FC<{
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<Step>(step);
   const [isCopied, setIsCopied] = useState(false);
+  const [showNote, setShowNote] = useState(false);
 
   useEffect(() => {
     setFormData(step);
@@ -443,26 +444,65 @@ const SubStepCard: React.FC<{
                 <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-light leading-relaxed mb-3 pl-1 break-words">
                 {step.content}
                 </p>
-                <div className="flex justify-end gap-2 border-t border-slate-200 dark:border-slate-800/30 pt-2">
-                    <button 
-                      onClick={handleCopy}
-                      className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-cyan-600 dark:text-slate-400 dark:hover:text-cyan-400 uppercase font-bold px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                    >
-                      {isCopied ? <Check size={10} aria-hidden="true" /> : <Copy size={10} aria-hidden="true" />}
-                      {isCopied ? 'Copied' : 'Copy'}
-                    </button>
-                    <button 
-                      onClick={() => setIsEditing(true)}
-                      className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-cyan-600 dark:text-slate-400 dark:hover:text-cyan-400 uppercase font-bold px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                    >
-                    <Edit2 size={10} aria-hidden="true" /> Edit
-                    </button>
-                    <button 
-                      onClick={() => onDelete()}
-                      className="flex items-center gap-1 text-[10px] text-rose-700 hover:text-rose-500 dark:text-rose-900 dark:hover:text-rose-500 uppercase font-bold px-2 py-1 rounded hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
-                    >
-                    <Trash2 size={10} aria-hidden="true" /> Delete
-                    </button>
+                
+                {/* Actions & Notes Toolbar */}
+                <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800/30 pt-2 relative">
+                    {/* Note Toggle */}
+                    <div className="relative">
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); setShowNote(!showNote); }}
+                            className={`p-1.5 rounded-md transition-colors ${step.notes ? 'text-amber-500 hover:text-amber-600 bg-amber-50 dark:bg-amber-900/20' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                            title="Sub-Task Note"
+                        >
+                            <StickyNote size={14} />
+                            {step.notes && <span className="absolute top-0 right-0 w-1.5 h-1.5 bg-amber-500 rounded-full border border-white dark:border-slate-900"></span>}
+                        </button>
+                        
+                        {showNote && (
+                            <>
+                                <div className="fixed inset-0 z-40" onClick={() => setShowNote(false)}></div>
+                                <div className="absolute bottom-full left-0 mb-2 w-56 bg-amber-50 dark:bg-slate-800 border border-amber-200 dark:border-slate-700 rounded-lg shadow-xl z-50 p-2 animate-in fade-in zoom-in-95 duration-200">
+                                     <div className="flex items-center justify-between mb-1 px-1">
+                                        <span className="text-[9px] uppercase font-bold text-amber-600 dark:text-amber-500 tracking-wider">Note</span>
+                                    </div>
+                                    <textarea 
+                                        className="w-full h-24 bg-transparent border-0 focus:ring-0 p-1 text-xs text-slate-700 dark:text-slate-300 font-mono resize-none leading-relaxed placeholder-slate-400 dark:placeholder-slate-600"
+                                        placeholder="Add a note..."
+                                        value={step.notes || ''}
+                                        onChange={(e) => {
+                                            // Directly calling onUpdate with new notes
+                                            onUpdate({ ...step, notes: e.target.value });
+                                        }}
+                                        onClick={(e) => e.stopPropagation()} 
+                                        autoFocus
+                                    />
+                                </div>
+                            </>
+                        )}
+                    </div>
+
+                    {/* Main Actions */}
+                    <div className="flex gap-2">
+                        <button 
+                        onClick={handleCopy}
+                        className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-cyan-600 dark:text-slate-400 dark:hover:text-cyan-400 uppercase font-bold px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        >
+                        {isCopied ? <Check size={10} aria-hidden="true" /> : <Copy size={10} aria-hidden="true" />}
+                        {isCopied ? 'Copied' : 'Copy'}
+                        </button>
+                        <button 
+                        onClick={() => setIsEditing(true)}
+                        className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-cyan-600 dark:text-slate-400 dark:hover:text-cyan-400 uppercase font-bold px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        >
+                        <Edit2 size={10} aria-hidden="true" /> Edit
+                        </button>
+                        <button 
+                        onClick={() => onDelete()}
+                        className="flex items-center gap-1 text-[10px] text-rose-700 hover:text-rose-500 dark:text-rose-900 dark:hover:text-rose-500 uppercase font-bold px-2 py-1 rounded hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                        >
+                        <Trash2 size={10} aria-hidden="true" /> Delete
+                        </button>
+                    </div>
                 </div>
             </div>
             </div>
