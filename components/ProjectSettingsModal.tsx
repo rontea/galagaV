@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Project, CategoryConfig, StatusConfig, GlobalConfig } from '../types';
 import { 
   Settings, Plus, Trash2, Tag, Activity, Layout, X, Save, 
-  CheckCircle2, AlertOctagon, Circle, Bot, Type, FileText
+  CheckCircle2, AlertOctagon, Circle, Bot, Type, FileText, Lock
 } from 'lucide-react';
 import { FULL_ICON_MAP } from './ProjectList';
 
@@ -15,6 +15,13 @@ interface ProjectSettingsModalProps {
 }
 
 const COLORS = ['slate', 'red', 'orange', 'amber', 'yellow', 'lime', 'green', 'emerald', 'teal', 'cyan', 'sky', 'blue', 'indigo', 'violet', 'purple', 'fuchsia', 'pink', 'rose'];
+
+const SYSTEM_STATUSES = [
+  { key: 'pending', label: 'Pending', color: 'slate', icon: 'Circle' },
+  { key: 'in-progress', label: 'In Progress', color: 'amber', icon: 'Clock' },
+  { key: 'completed', label: 'Completed', color: 'emerald', icon: 'CheckCircle2' },
+  { key: 'failed', label: 'Failed', color: 'red', icon: 'AlertOctagon' }
+];
 
 const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ 
   isOpen, onClose, project, onUpdateProject, globalConfig 
@@ -222,12 +229,12 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                 placeholder="Label (e.g. QA)"
                 className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-3 py-2 text-xs focus:ring-2 focus:ring-cyan-500 outline-none"
             />
-            <div className="flex gap-1 overflow-x-auto pb-2 custom-scrollbar">
+            <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
                 {COLORS.map(c => (
                     <button 
                         key={c}
                         onClick={() => setNewCatColor(c)}
-                        className={`w-6 h-6 rounded-full flex-shrink-0 bg-${c}-500 transition-transform hover:scale-110 ${newCatColor === c ? 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 ring-slate-400 scale-110' : ''}`}
+                        className={`w-8 h-8 rounded-full flex-shrink-0 bg-${c}-500 transition-transform hover:scale-110 ${newCatColor === c ? 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 ring-slate-400 scale-110' : ''}`}
                     />
                 ))}
             </div>
@@ -274,28 +281,28 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                <div>
                   <p className="text-[9px] text-slate-400 mb-1">Color</p>
-                  <div className="flex gap-1 overflow-x-auto pb-2 custom-scrollbar">
+                  <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
                       {COLORS.map(c => (
                           <button 
                               key={c}
                               onClick={() => setNewStatColor(c)}
-                              className={`w-5 h-5 rounded-full flex-shrink-0 bg-${c}-500 transition-transform hover:scale-110 ${newStatColor === c ? 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 ring-slate-400 scale-110' : ''}`}
+                              className={`w-8 h-8 rounded-full flex-shrink-0 bg-${c}-500 transition-transform hover:scale-110 ${newStatColor === c ? 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 ring-slate-400 scale-110' : ''}`}
                           />
                       ))}
                   </div>
                </div>
                <div>
                   <p className="text-[9px] text-slate-400 mb-1">Icon</p>
-                  <div className="flex gap-1 overflow-x-auto pb-2 custom-scrollbar">
+                  <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
                        {globalConfig.statusIcons.map(key => {
                            const Icon = FULL_ICON_MAP[key];
                            return (
                                <button
                                   key={key}
                                   onClick={() => setNewStatIcon(key)}
-                                  className={`p-1.5 rounded flex items-center justify-center border flex-shrink-0 transition-all ${newStatIcon === key ? 'bg-cyan-100 border-cyan-500 text-cyan-700' : 'bg-white border-slate-200 text-slate-400'}`}
+                                  className={`p-2 rounded flex items-center justify-center border flex-shrink-0 transition-all ${newStatIcon === key ? 'bg-cyan-100 border-cyan-500 text-cyan-700' : 'bg-white border-slate-200 text-slate-400'}`}
                                >
-                                   <Icon size={14} />
+                                   <Icon size={18} />
                                </button>
                            )
                        })}
@@ -313,25 +320,53 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
           </div>
       </div>
 
-      <div className="space-y-2">
-          <p className="text-[10px] uppercase font-bold text-slate-400">Existing Statuses</p>
-          {(project.statuses || []).length === 0 && <p className="text-xs text-slate-400 italic">No custom statuses.</p>}
-          {(project.statuses || []).map(stat => {
-              const Icon = FULL_ICON_MAP[stat.icon] || Circle;
-              return (
-                  <div key={stat.key} className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm">
-                      <div className="flex items-center gap-3">
-                          <div className={`text-${stat.color}-500 bg-${stat.color}-50 dark:bg-${stat.color}-900/20 p-1.5 rounded`}>
-                            <Icon size={16} />
+      <div className="space-y-4">
+          {/* System Defaults */}
+          <div>
+            <p className="text-[10px] uppercase font-bold text-slate-400 mb-2">System Defaults</p>
+            <div className="space-y-2">
+              {SYSTEM_STATUSES.map(stat => {
+                  const Icon = FULL_ICON_MAP[stat.icon] || Circle;
+                  return (
+                      <div key={stat.key} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 opacity-80">
+                          <div className="flex items-center gap-3">
+                              <div className={`text-${stat.color}-500 bg-${stat.color}-50 dark:bg-${stat.color}-900/20 p-1.5 rounded`}>
+                                <Icon size={16} />
+                              </div>
+                              <span className="text-sm font-bold text-slate-600 dark:text-slate-400">{stat.label}</span>
                           </div>
-                          <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{stat.label}</span>
+                          <div className="text-slate-300 p-2" title="System Status (Read Only)">
+                              <Lock size={14} />
+                          </div>
                       </div>
-                      <button onClick={() => handleRemoveStatus(stat.key)} className="text-slate-400 hover:text-rose-500 p-2 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded transition-colors">
-                          <Trash2 size={16} />
-                      </button>
-                  </div>
-              )
-          })}
+                  )
+              })}
+            </div>
+          </div>
+
+          {/* Custom Statuses */}
+          <div>
+            <p className="text-[10px] uppercase font-bold text-slate-400 mb-2">Custom Statuses</p>
+            {(project.statuses || []).length === 0 && <p className="text-xs text-slate-400 italic">No custom statuses.</p>}
+            <div className="space-y-2">
+              {(project.statuses || []).map(stat => {
+                  const Icon = FULL_ICON_MAP[stat.icon] || Circle;
+                  return (
+                      <div key={stat.key} className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm">
+                          <div className="flex items-center gap-3">
+                              <div className={`text-${stat.color}-500 bg-${stat.color}-50 dark:bg-${stat.color}-900/20 p-1.5 rounded`}>
+                                <Icon size={16} />
+                              </div>
+                              <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{stat.label}</span>
+                          </div>
+                          <button onClick={() => handleRemoveStatus(stat.key)} className="text-slate-400 hover:text-rose-500 p-2 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded transition-colors">
+                              <Trash2 size={16} />
+                          </button>
+                      </div>
+                  )
+              })}
+            </div>
+          </div>
       </div>
     </div>
   );
