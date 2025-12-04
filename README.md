@@ -1,16 +1,20 @@
-# GalagaV - Project Dashboard & Game
+# GalagaV - Project Dashboard
 
-![Status](https://img.shields.io/badge/Status-In--Development-orange) ![Version](https://img.shields.io/badge/Version-v0.8.0--alpha-blue)
+![Status](https://img.shields.io/badge/Status-Beta-blue) ![Version](https://img.shields.io/badge/Version-v0.9.0--beta-purple)
 
-A modern, arcade-themed project management dashboard built with React, TypeScript, and Tailwind CSS. Originally designed as a dashboard for a Galaga Clone game, it has evolved into a fully functional task management tool with sub-tasks, history tracking, and JSON import/export capabilities.
+A modern, arcade-themed project management dashboard built with React, TypeScript, and Tailwind CSS. It combines retro aesthetics with powerful task management features, offering a unique "Gamified" interface for technical protocols and complex project planning.
 
-![GalagaV Screenshot](https://via.placeholder.com/800x450?text=GalagaV+Dashboard)
+![GalagaV Screenshot](https://via.placeholder.com/800x450?text=GalagaV+Dashboard+v0.9)
 
 ## 🚀 Features
 
-### 📋 Project & Task Management
+### 📋 Advanced Task Management
 -   **Timeline Visualization**: Vertical timeline with drag-and-drop reordering.
--   **Advanced Drag & Drop**:
+-   **Focused Workspaces (Tabs)**:
+    -   **Task as Tab**: Open any complex task in its own dedicated tab for a distraction-free environment.
+    -   **Read/Edit Modes**: Toggle between a clean "Document View" for reading requirements and an "Edit Mode" for making changes.
+    -   **Deep Sub-Tasking**: Manage sub-tasks directly within the focused view.
+-   **Drag & Drop Power**:
     -   **Nest**: Drag a main task onto another to instantly convert it into a sub-task.
     -   **Promote**: Drag a sub-task into the main timeline to make it a top-level task.
     -   **Sort**: Reorder sub-tasks freely within their parent or move them to other parents.
@@ -18,11 +22,13 @@ A modern, arcade-themed project management dashboard built with React, TypeScrip
     -   **Numbering**: Auto-indexed sub-tasks (e.g., #1, #2).
     -   **Compact View**: Completed and Failed sub-tasks shrink to save space.
     -   **Auto-Edit**: New sub-tasks open immediately in edit mode for rapid entry.
--   **Productivity Tools**:
-    -   **Quick Notes**: Sticky-note style scratchpad attached to every task.
-    -   **Duplicate**: One-click deep copy of tasks and their sub-structures.
-    -   **Click-to-Edit**: Update task titles directly in the view mode.
-    -   **Smart Copy**: Robust clipboard actions for task details.
+
+### 🔌 Experimental Plugin System
+GalagaV features a **Micro-Frontend Architecture** allowing you to load external tools dynamically.
+
+-   **Runtime Loading**: Load external React components (built as UMD libraries) via URL without rebuilding the dashboard.
+-   **Shared Context**: Plugins receive project data, theme settings, and save hooks automatically.
+-   **Use Cases**: Add custom tools like "Database Schema Builders", "Kanban Boards", or "Analytics Charts" as tabs.
 
 ### 🎨 Customization & Visuals
 -   **Visual States**:
@@ -35,8 +41,7 @@ A modern, arcade-themed project management dashboard built with React, TypeScrip
 -   **Data Portability**: Export projects to JSON and import them anywhere.
 -   **Offline First**: Works completely offline using LocalStorage.
 -   **Optional Integrations**:
-    -   Firebase (High Scores & Profiles)
-    -   Google Gemini API (AI Callsign Generation)
+    -   Google Gemini API (AI Context Generation)
 
 ---
 
@@ -96,26 +101,6 @@ export default defineConfig({
 
 ---
 
-## ❓ Troubleshooting
-
-If you run `npm run dev` and encounter issues, check the following:
-
-**1. "command not found"**
-*   Ensure Node.js is installed. Type `node -v` in your terminal. It should print a version number (e.g., `v18.x.x`).
-
-**2. White Screen / Blank Page**
-*   Check the browser console (F12 -> Console).
-*   If you see errors about missing modules, ensure you ran `npm install` and that it completed without errors.
-
-**3. "Address already in use"**
-*   The port is taken. See the "Changing the Port" section above.
-
-**4. Styles looking wrong?**
-*   The app uses Tailwind CSS processed via PostCSS.
-*   **Fix:** Ensure `npm install` installed `tailwindcss`, `postcss`, and `autoprefixer`. Restart the server (`Ctrl+C` then `npm run dev`) to ensure the CSS pipeline rebuilds correctly.
-
----
-
 ## 📦 Building for Production
 
 To create a static version of the app (HTML/CSS/JS) that you can upload to any web host:
@@ -132,16 +117,37 @@ To create a static version of the app (HTML/CSS/JS) that you can upload to any w
 
 ## 🔑 Environment Variables (Optional)
 
-Create a `.env` file in the root directory to enable external services. The app will work fine without these, falling back to local simulation mode.
+Create a `.env` file in the root directory to enable external services. The app will work fine without these.
 
 ```env
-# Firebase Configuration (For Global High Scores)
-VITE_FIREBASE_API_KEY=your_key
-VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-...
-
-# Google Gemini API (For AI Callsign Generation)
+# Google Gemini API (For AI Features)
 VITE_GEMINI_API_KEY=your_key
+```
+
+---
+
+## 📂 Project Structure
+
+```text
+/
+├── index.html              # Entry point (Vite)
+├── src/
+│   ├── components/         # React UI Components
+│   │   ├── ProjectList.tsx    # Dashboard Home
+│   │   ├── ProjectDetail.tsx  # Main Task Timeline View
+│   │   ├── PluginView.tsx     # External Module Loader
+│   │   ├── SettingsModal.tsx  # Global Config & Plugin Mgr
+│   │   └── ...
+│   ├── hooks/              # Custom React Hooks
+│   │   └── usePluginLoader.ts # Dynamic Script Injection
+│   ├── lib/                # Library Initializations
+│   ├── services/           # External API Logic
+│   │   └── geminiService.ts   # Google AI Integration
+│   ├── types.ts            # TypeScript Interfaces
+│   ├── App.tsx             # Main Routing/Layout Logic
+│   └── index.css           # Tailwind Imports & Global Styles
+├── tailwind.config.js      # Tailwind Configuration
+└── vite.config.ts          # Vite Configuration
 ```
 
 ---
