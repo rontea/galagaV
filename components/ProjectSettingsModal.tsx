@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Project, CategoryConfig, StatusConfig, GlobalConfig } from '../types';
 import { 
   Settings, Plus, Trash2, Tag, Activity, Layout, X, Save, 
-  CheckCircle2, AlertOctagon, Circle, Bot, Type, FileText, Lock
+  CheckCircle2, AlertOctagon, Circle, Bot, Type, FileText, Lock, Clock
 } from 'lucide-react';
 import { FULL_ICON_MAP } from './ProjectList';
 
@@ -234,7 +234,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                     <button 
                         key={c}
                         onClick={() => setNewCatColor(c)}
-                        className={`w-8 h-8 rounded-full flex-shrink-0 bg-${c}-500 transition-transform hover:scale-110 ${newCatColor === c ? 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 ring-slate-400 scale-110' : ''}`}
+                        className={`w-12 h-12 rounded-full flex-shrink-0 bg-${c}-500 transition-transform hover:scale-110 ${newCatColor === c ? 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 ring-slate-400 scale-110' : ''}`}
                     />
                 ))}
             </div>
@@ -286,7 +286,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                           <button 
                               key={c}
                               onClick={() => setNewStatColor(c)}
-                              className={`w-8 h-8 rounded-full flex-shrink-0 bg-${c}-500 transition-transform hover:scale-110 ${newStatColor === c ? 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 ring-slate-400 scale-110' : ''}`}
+                              className={`w-12 h-12 rounded-full flex-shrink-0 bg-${c}-500 transition-transform hover:scale-110 ${newStatColor === c ? 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 ring-slate-400 scale-110' : ''}`}
                           />
                       ))}
                   </div>
@@ -300,9 +300,9 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
                                <button
                                   key={key}
                                   onClick={() => setNewStatIcon(key)}
-                                  className={`p-2 rounded flex items-center justify-center border flex-shrink-0 transition-all ${newStatIcon === key ? 'bg-cyan-100 border-cyan-500 text-cyan-700' : 'bg-white border-slate-200 text-slate-400'}`}
+                                  className={`p-3 rounded flex items-center justify-center border flex-shrink-0 transition-all ${newStatIcon === key ? 'bg-cyan-100 border-cyan-500 text-cyan-700' : 'bg-white border-slate-200 text-slate-400'}`}
                                >
-                                   <Icon size={18} />
+                                   <Icon size={24} />
                                </button>
                            )
                        })}
