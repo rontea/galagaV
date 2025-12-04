@@ -65,6 +65,7 @@ const App: React.FC = () => {
   const [globalConfig, setGlobalConfig] = useState<GlobalConfig>({
     projectIcons: DEFAULT_PROJECT_KEYS,
     statusIcons: DEFAULT_STATUS_KEYS,
+    plugins: [],
     theme: 'dark' // Default to dark
   });
 
@@ -94,7 +95,10 @@ const App: React.FC = () => {
       // Load Global Config
       const configData = localStorage.getItem(STORAGE_KEY_GLOBAL_CONFIG);
       if (configData) {
-        setGlobalConfig(JSON.parse(configData));
+        const parsed = JSON.parse(configData);
+        // Ensure plugins array exists if loading from older config
+        if (!parsed.plugins) parsed.plugins = [];
+        setGlobalConfig(parsed);
       }
     } catch (e) {
       console.warn("Failed to load/migrate projects", e);
@@ -121,6 +125,10 @@ const App: React.FC = () => {
       ...prev,
       theme: prev.theme === 'dark' ? 'light' : 'dark'
     }));
+  };
+
+  const handleUpdateGlobalConfig = (newConfig: GlobalConfig) => {
+    setGlobalConfig(newConfig);
   };
 
   const handleCreateProject = (name: string, description: string, systemPrompt: string) => {
@@ -217,26 +225,6 @@ const App: React.FC = () => {
     setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
   };
 
-  const handleAddIcon = (type: 'project' | 'status', key: string) => {
-    if (type === 'project') {
-      if (!globalConfig.projectIcons.includes(key)) {
-        setGlobalConfig(prev => ({ ...prev, projectIcons: [...prev.projectIcons, key] }));
-      }
-    } else {
-      if (!globalConfig.statusIcons.includes(key)) {
-        setGlobalConfig(prev => ({ ...prev, statusIcons: [...prev.statusIcons, key] }));
-      }
-    }
-  };
-
-  const handleRemoveIcon = (type: 'project' | 'status', key: string) => {
-    if (type === 'project') {
-      setGlobalConfig(prev => ({ ...prev, projectIcons: prev.projectIcons.filter(k => k !== key) }));
-    } else {
-      setGlobalConfig(prev => ({ ...prev, statusIcons: prev.statusIcons.filter(k => k !== key) }));
-    }
-  };
-
   const activeProject = projects.find(p => p.id === activeProjectId);
 
   // --- Render ---
@@ -250,10 +238,8 @@ const App: React.FC = () => {
             onUpdateProject={handleUpdateProject}
             onBack={() => setActiveProjectId(null)}
             onDeleteProject={handleSoftDeleteProject}
-            activeProjectIcons={globalConfig.projectIcons}
-            activeStatusIcons={globalConfig.statusIcons}
-            theme={globalConfig.theme}
-            onToggleTheme={handleToggleTheme}
+            globalConfig={globalConfig}
+            onUpdateGlobalConfig={handleUpdateGlobalConfig}
           />
         ) : (
           <ProjectList 
@@ -265,12 +251,8 @@ const App: React.FC = () => {
             onRestoreProject={handleRestoreProject}
             onPermanentDeleteProject={handlePermanentDeleteProject}
             onClearArchive={handleClearArchive}
-            activeProjectIcons={globalConfig.projectIcons}
-            activeStatusIcons={globalConfig.statusIcons}
-            onAddIcon={handleAddIcon}
-            onRemoveIcon={handleRemoveIcon}
-            theme={globalConfig.theme}
-            onToggleTheme={handleToggleTheme}
+            globalConfig={globalConfig}
+            onUpdateGlobalConfig={handleUpdateGlobalConfig}
           />
         )}
 

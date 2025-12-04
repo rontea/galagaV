@@ -110,8 +110,18 @@ export interface Project {
   deletedAt?: number; // Timestamp if soft-deleted/archived
 }
 
+// --- PLUGIN SYSTEM TYPES ---
+export interface PluginConfig {
+  id: string;
+  name: string;
+  url: string; // The URL to the UMD script
+  globalName: string; // The window variable the plugin attaches to (e.g. GalagaPlugin_SchemaBuilder)
+  enabled: boolean;
+}
+
 export interface GlobalConfig {
   projectIcons: string[]; // List of active icon keys for projects
   statusIcons: string[];  // List of active icon keys for statuses
+  plugins: PluginConfig[]; // Installed plugins
   theme: 'light' | 'dark'; // UI Theme preference
 }

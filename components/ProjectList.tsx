@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { Project } from '../types';
+import { Project, GlobalConfig } from '../types';
 import Header from './Header';
+import SettingsModal from './SettingsModal';
 import { 
   Plus, Terminal, Trash2, ArrowRight, Calendar, Settings, X, Search,
   Gamepad2, Rocket, Code2, Cpu, Globe, Zap, Box, Ghost, Sword, Bot,
@@ -24,13 +25,8 @@ interface ProjectListProps {
   onPermanentDeleteProject: (id: string) => void; // Hard Delete
   onClearArchive: () => void; // Clear All Archived
   // Global Config Props
-  activeProjectIcons: string[];
-  activeStatusIcons: string[];
-  onAddIcon: (type: 'project' | 'status', key: string) => void;
-  onRemoveIcon: (type: 'project' | 'status', key: string) => void;
-  // Theme
-  theme: 'light' | 'dark';
-  onToggleTheme: () => void;
+  globalConfig: GlobalConfig;
+  onUpdateGlobalConfig: (config: GlobalConfig) => void;
 }
 
 // 1. Define the Full Library of available icons
@@ -75,12 +71,8 @@ const ProjectList: React.FC<ProjectListProps> = ({
   onRestoreProject,
   onPermanentDeleteProject,
   onClearArchive,
-  activeProjectIcons,
-  activeStatusIcons,
-  onAddIcon,
-  onRemoveIcon,
-  theme,
-  onToggleTheme
+  globalConfig,
+  onUpdateGlobalConfig
 }) => {
   const [isCreating, setIsCreating] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -91,9 +83,6 @@ const ProjectList: React.FC<ProjectListProps> = ({
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newSystemPrompt, setNewSystemPrompt] = useState('');
-
-  // Settings State
-  const [settingsTab, setSettingsTab] = useState<'project' | 'status'>('project');
 
   const archivedCount = projects.filter(p => p.deletedAt).length;
   const activeCount = projects.filter(p => !p.deletedAt).length;
@@ -158,66 +147,11 @@ const ProjectList: React.FC<ProjectListProps> = ({
     reader.readAsText(file);
   };
 
-  const renderIconGrid = (type: 'project' | 'status') => {
-    const activeKeys = type === 'project' ? activeProjectIcons : activeStatusIcons;
-    const defaultKeys = type === 'project' ? DEFAULT_PROJECT_KEYS : DEFAULT_STATUS_KEYS;
-    const availableKeys = Object.keys(FULL_ICON_MAP).filter(k => !activeKeys.includes(k));
-
-    return (
-      <div className="space-y-6">
-        {/* Active Icons Section */}
-        <div>
-          <h3 className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-2">
-            Active Icons <span className="text-[10px] bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-600 dark:text-slate-400">{activeKeys.length}</span>
-          </h3>
-          <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2 bg-slate-100 dark:bg-slate-900/50 p-4 rounded-lg border border-slate-200 dark:border-slate-800">
-            {activeKeys.map(key => {
-              const Icon = FULL_ICON_MAP[key] || Terminal;
-              const isDefault = defaultKeys.includes(key);
-              return (
-                <div key={key} className="group relative flex items-center justify-center p-2 bg-white dark:bg-slate-800 rounded border border-slate-300 dark:border-slate-700 hover:border-cyan-500/50 transition-colors shadow-sm">
-                  <Icon size={20} className="text-slate-600 dark:text-slate-300" aria-hidden="true" />
-                  {!isDefault && (
-                    <button
-                      type="button"
-                      onClick={() => onRemoveIcon(type, key)}
-                      className="absolute -top-1 -right-1 bg-rose-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm z-10 focus:opacity-100"
-                      aria-label={`Remove ${key} icon`}
-                    >
-                      <X size={10} />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Library Section */}
-        <div>
-          <h3 className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-2">
-            Available Library <span className="text-[10px] bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-600 dark:text-slate-400">{availableKeys.length}</span>
-          </h3>
-          <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2 max-h-[200px] overflow-y-auto custom-scrollbar p-1">
-            {availableKeys.map(key => {
-              const Icon = FULL_ICON_MAP[key];
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => onAddIcon(type, key)}
-                  className="flex items-center justify-center p-2 bg-white dark:bg-slate-950 rounded border border-slate-200 dark:border-slate-800 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 hover:border-cyan-500 text-slate-500 hover:text-cyan-600 dark:hover:text-cyan-400 transition-all"
-                  title={`Add ${key}`}
-                  aria-label={`Add ${key} icon to active set`}
-                >
-                  <Icon size={20} aria-hidden="true" />
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    );
+  const toggleTheme = () => {
+    onUpdateGlobalConfig({
+        ...globalConfig,
+        theme: globalConfig.theme === 'dark' ? 'light' : 'dark'
+    });
   };
 
   return (
@@ -235,11 +169,11 @@ const ProjectList: React.FC<ProjectListProps> = ({
          </div>
          <div className="flex gap-3 flex-wrap sm:flex-nowrap">
             <button
-               onClick={onToggleTheme}
+               onClick={toggleTheme}
                className="p-3 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 hover:text-amber-500 dark:hover:text-yellow-400 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors"
-               title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
+               title={`Switch to ${globalConfig.theme === 'dark' ? 'Light' : 'Dark'} Mode`}
             >
-               {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+               {globalConfig.theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
             </button>
 
             <button
@@ -332,62 +266,12 @@ const ProjectList: React.FC<ProjectListProps> = ({
       </div>
 
       {/* SETTINGS MODAL */}
-      {isSettingsOpen && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm animate-in fade-in"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Global Configuration Settings"
-        >
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50">
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2 font-mono">
-                <Settings size={18} className="text-cyan-600 dark:text-cyan-500" aria-hidden="true" />
-                GLOBAL CONFIGURATION
-              </h2>
-              <button 
-                type="button"
-                onClick={() => setIsSettingsOpen(false)}
-                className="text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
-                aria-label="Close Settings"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            
-            <div className="flex border-b border-slate-200 dark:border-slate-800">
-              <button 
-                type="button"
-                onClick={() => setSettingsTab('project')}
-                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider ${settingsTab === 'project' ? 'bg-slate-100 dark:bg-slate-800 text-cyan-700 dark:text-cyan-400 border-b-2 border-cyan-500' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
-              >
-                Project Icons
-              </button>
-              <button 
-                type="button"
-                onClick={() => setSettingsTab('status')}
-                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider ${settingsTab === 'status' ? 'bg-slate-100 dark:bg-slate-800 text-cyan-700 dark:text-cyan-400 border-b-2 border-cyan-500' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
-              >
-                Status Icons
-              </button>
-            </div>
-
-            <div className="p-6 bg-white dark:bg-slate-900 max-h-[60vh] overflow-y-auto">
-               {renderIconGrid(settingsTab)}
-            </div>
-
-            <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/30 text-right">
-              <button 
-                type="button"
-                onClick={() => setIsSettingsOpen(false)}
-                className="px-4 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-white text-xs font-bold uppercase rounded border border-slate-300 dark:border-slate-700"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <SettingsModal 
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        config={globalConfig}
+        onUpdateConfig={onUpdateGlobalConfig}
+      />
 
       {/* NEW PROJECT FORM */}
       {isCreating && viewMode === 'active' && (
