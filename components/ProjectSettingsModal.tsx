@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Project, CategoryConfig, StatusConfig, GlobalConfig } from '../types';
 import { 
   Settings, Plus, Trash2, Tag, Activity, Layout, X, Save, 
-  CheckCircle2, AlertOctagon, Circle, Bot, Type, FileText, Lock, Clock
+  CheckCircle2, AlertOctagon, Circle, Bot, Type, FileText, Lock, Clock,
+  Download, Upload
 } from 'lucide-react';
 import { FULL_ICON_MAP } from './ProjectList';
 
@@ -27,6 +28,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
   isOpen, onClose, project, onUpdateProject, globalConfig 
 }) => {
   const [activeTab, setActiveTab] = useState<'identity' | 'categories' | 'statuses'>('identity');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Identity Form State
   const [name, setName] = useState(project.name);
@@ -67,6 +69,90 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
 
   const handleUpdateIcon = (iconKey: string) => {
     onUpdateProject({ ...project, icon: iconKey });
+  };
+
+  // --- Import/Export Logic ---
+  const handleExportSettings = () => {
+    const configData = {
+      categories: project.categories || [],
+      statuses: project.statuses || []
+    };
+    
+    const jsonString = JSON.stringify(configData, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const href = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = `${project.name.replace(/\s+/g, '_').toLowerCase()}_config.json`;
+    document.body.appendChild(link);
+    link.click();
+    
+    document.body.removeChild(link);
+    URL.revokeObjectURL(href);
+  };
+
+  const handleImportSettings = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const result = event.target?.result as string;
+        const parsed = JSON.parse(result);
+        
+        // Validation
+        if (!Array.isArray(parsed.categories) && !Array.isArray(parsed.statuses)) {
+          alert("Invalid config file. Must contain 'categories' or 'statuses' arrays.");
+          return;
+        }
+
+        const newCategories = [...(project.categories || [])];
+        const newStatuses = [...(project.statuses || [])];
+        let changesCount = 0;
+
+        // Merge Categories
+        if (Array.isArray(parsed.categories)) {
+            parsed.categories.forEach((cat: CategoryConfig) => {
+                const existingIdx = newCategories.findIndex(c => c.key === cat.key);
+                if (existingIdx !== -1) {
+                    newCategories[existingIdx] = cat; // Overwrite existing
+                } else {
+                    newCategories.push(cat); // Add new
+                }
+                changesCount++;
+            });
+        }
+
+        // Merge Statuses
+        if (Array.isArray(parsed.statuses)) {
+            parsed.statuses.forEach((stat: StatusConfig) => {
+                const existingIdx = newStatuses.findIndex(s => s.key === stat.key);
+                if (existingIdx !== -1) {
+                    newStatuses[existingIdx] = stat; // Overwrite existing
+                } else {
+                    newStatuses.push(stat); // Add new
+                }
+                changesCount++;
+            });
+        }
+
+        onUpdateProject({
+            ...project,
+            categories: newCategories,
+            statuses: newStatuses
+        });
+        
+        alert(`Configuration imported successfully! Updated/Added ${changesCount} items.`);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+
+      } catch (err) {
+        console.error("Import failed", err);
+        alert("Failed to parse configuration file.");
+      }
+    };
+    reader.readAsText(file);
   };
 
   // --- Category Logic ---
@@ -417,6 +503,30 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({
              >
                 <Activity size={16} /> Statuses
              </button>
+
+             {/* Configuration Management */}
+             <div className="mt-auto border-t border-slate-200 dark:border-slate-800 pt-4 flex flex-col gap-2">
+                 <p className="text-[9px] uppercase font-bold text-slate-400 pl-2">Configuration</p>
+                 <button 
+                    onClick={handleExportSettings}
+                    className="flex items-center gap-2 px-3 py-2 text-slate-500 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors text-xs font-bold uppercase"
+                 >
+                    <Download size={14} /> Export Config
+                 </button>
+                 <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center gap-2 px-3 py-2 text-slate-500 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors text-xs font-bold uppercase"
+                 >
+                    <Upload size={14} /> Import Config
+                 </button>
+                 <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={handleImportSettings} 
+                    accept=".json" 
+                    className="hidden" 
+                 />
+             </div>
           </div>
 
           {/* Main Content Area */}

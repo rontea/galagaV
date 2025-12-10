@@ -832,8 +832,8 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
   };
 
   const handleSmartCopy = async (step: Step) => {
-    const fullPrompt = `${project.systemPrompt}\n\n${step.content}`;
-    const success = await copyToClipboard(fullPrompt);
+    const content = step.content; 
+    const success = await copyToClipboard(content);
     if (success) {
       setCopiedStepId(step.id);
       setTimeout(() => setCopiedStepId(null), 2000);
@@ -1359,13 +1359,22 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                                 </div>
                               </div>
 
-                              <button 
-                                onClick={() => setIsProjectSettingsOpen(true)}
-                                className="absolute top-4 right-4 p-2 text-slate-400 hover:text-cyan-600 dark:text-slate-600 dark:hover:text-cyan-400 transition-colors bg-white/50 dark:bg-black/20 rounded-lg border border-transparent hover:border-cyan-200 dark:hover:border-cyan-800"
-                                title="Project Settings (Identity, Categories, Statuses)"
-                              >
-                                <Settings size={18} aria-hidden="true" />
-                              </button>
+                              <div className="absolute top-4 right-4 flex gap-2">
+                                <button 
+                                  onClick={() => onDeleteProject(project.id)}
+                                  className="p-2 text-slate-400 hover:text-rose-600 dark:text-slate-600 dark:hover:text-rose-400 transition-colors bg-white/50 dark:bg-black/20 rounded-lg border border-transparent hover:border-rose-200 dark:hover:border-rose-800"
+                                  title="Archive Project"
+                                >
+                                  <Archive size={18} aria-hidden="true" />
+                                </button>
+                                <button 
+                                  onClick={() => setIsProjectSettingsOpen(true)}
+                                  className="p-2 text-slate-400 hover:text-cyan-600 dark:text-slate-600 dark:hover:text-cyan-400 transition-colors bg-white/50 dark:bg-black/20 rounded-lg border border-transparent hover:border-cyan-200 dark:hover:border-cyan-800"
+                                  title="Project Settings (Identity, Categories, Statuses)"
+                                >
+                                  <Settings size={18} aria-hidden="true" />
+                                </button>
+                              </div>
 
                               {/* VIEW MODE: Description */}
                               <div className="flex flex-col gap-6">
