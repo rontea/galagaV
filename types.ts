@@ -112,11 +112,22 @@ export interface Project {
 }
 
 // --- PLUGIN SYSTEM TYPES ---
+
+export interface PluginManifest {
+  id: string;          // e.g. "com.galagav.schema-builder"
+  name: string;        // e.g. "Schema Builder"
+  version: string;     // e.g. "1.0.0"
+  description: string;
+  main: string;        // e.g. "index.js" - The entry point
+  style?: string;      // e.g. "style.css" - Optional css
+  globalVar: string;   // e.g. "GalagaPlugin_Schema" - The UMD global variable
+  type?: 'tool' | 'theme'; // 'tool' adds a tab, 'theme' is background only. Default: 'tool'
+}
+
 export interface PluginConfig {
   id: string;
-  name: string;
-  url: string; // The URL to the UMD script
-  globalName: string; // The window variable the plugin attaches to (e.g. GalagaPlugin_SchemaBuilder)
+  manifest: PluginManifest;
+  files: Record<string, string>; // Virtual File System: "filename" -> "DataURI/Content"
   enabled: boolean;
 }
 

@@ -1,7 +1,10 @@
+
 import React, { useState } from 'react';
-import { Settings, X, Terminal, Circle, Plus, Trash2, Power, AlertCircle, Upload } from 'lucide-react';
-import { GlobalConfig, PluginConfig } from '../types';
+import { Settings, X, Terminal, Circle, Plus, Trash2, Power, AlertCircle, Upload, Package, FileCode, RefreshCw } from 'lucide-react';
+import { GlobalConfig, PluginConfig, PluginManifest } from '../types';
 import { FULL_ICON_MAP, DEFAULT_PROJECT_KEYS, DEFAULT_STATUS_KEYS } from './ProjectList';
+import { getJiraPlugin } from '../data/defaultPlugins';
+import JSZip from 'jszip';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -12,11 +15,8 @@ interface SettingsModalProps {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, config, onUpdateConfig }) => {
   const [activeTab, setActiveTab] = useState<'project' | 'status' | 'plugins'>('project');
-  
-  // Plugin Form State
-  const [newPluginName, setNewPluginName] = useState('');
-  const [newPluginUrl, setNewPluginUrl] = useState('');
-  const [newPluginGlobal, setNewPluginGlobal] = useState('');
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   if (!isOpen) return null;
 
@@ -41,27 +41,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, config, 
     }
   };
 
-  // --- Plugin Handlers ---
-  const handleAddPlugin = () => {
-    if (!newPluginName || !newPluginUrl || !newPluginGlobal) return;
-
-    const newPlugin: PluginConfig = {
-      id: `plugin-${Date.now()}`,
-      name: newPluginName,
-      url: newPluginUrl,
-      globalName: newPluginGlobal,
-      enabled: true
-    };
-
-    onUpdateConfig({
-      ...config,
-      plugins: [...(config.plugins || []), newPlugin]
-    });
-
-    setNewPluginName('');
-    setNewPluginUrl('');
-    setNewPluginGlobal('');
-  };
+  // --- Plugin Handlers (Zip Based) ---
 
   const handleTogglePlugin = (id: string) => {
     const updatedPlugins = (config.plugins || []).map(p => 
@@ -71,31 +51,123 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, config, 
   };
 
   const handleDeletePlugin = (id: string) => {
-    if (confirm("Uninstall this plugin?")) {
+    if (confirm("Uninstall this plugin? This will remove the plugin files from storage.")) {
         const updatedPlugins = (config.plugins || []).filter(p => p.id !== id);
         onUpdateConfig({ ...config, plugins: updatedPlugins });
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleReinstallDefaults = () => {
+     const defaults = [getJiraPlugin()];
+     let addedCount = 0;
+     const currentPlugins = [...(config.plugins || [])];
+     
+     defaults.forEach(def => {
+         const exists = currentPlugins.find(p => p.id === def.id);
+         if (!exists) {
+             currentPlugins.push(def);
+             addedCount++;
+         }
+     });
+
+     if (addedCount > 0) {
+         onUpdateConfig({ ...config, plugins: currentPlugins });
+         alert(`Restored ${addedCount} default plugin(s).`);
+     } else {
+         alert("All default plugins are already installed.");
+     }
+  };
+
+  const handleZipUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Use FileReader to create a persistent Data URI (Base64)
-    // This allows the plugin code to be saved in LocalStorage and survive reloads
-    const reader = new FileReader();
-    reader.onload = (event) => {
-        const result = event.target?.result as string;
-        setNewPluginUrl(result);
-        
-        // Auto-fill name if empty
-        if (!newPluginName) {
-            // Remove extension and capitalize first letter
-            const name = file.name.replace(/\.[^/.]+$/, "");
-            setNewPluginName(name.charAt(0).toUpperCase() + name.slice(1));
+    setUploadError(null);
+    setIsProcessing(true);
+
+    try {
+        const zip = new JSZip();
+        const content = await zip.loadAsync(file);
+
+        // 1. Look for manifest.json
+        const manifestFile = content.file("manifest.json");
+        if (!manifestFile) {
+            throw new Error("Invalid Plugin: Missing 'manifest.json' in the root of the zip file.");
         }
-    };
-    reader.readAsDataURL(file);
+
+        const manifestStr = await manifestFile.async("string");
+        let manifest: PluginManifest;
+        try {
+            manifest = JSON.parse(manifestStr);
+        } catch (e) {
+            throw new Error("Invalid Plugin: 'manifest.json' is not valid JSON.");
+        }
+
+        // Validate Manifest
+        if (!manifest.id || !manifest.name || !manifest.main || !manifest.globalVar) {
+            throw new Error("Invalid Manifest: Missing required fields (id, name, main, globalVar).");
+        }
+
+        // 2. Read 'main' entry script (JS)
+        const scriptFile = content.file(manifest.main);
+        if (!scriptFile) {
+            throw new Error(`Invalid Plugin: Entry file '${manifest.main}' not found in zip.`);
+        }
+        const scriptBlob = await scriptFile.async("blob");
+        
+        // Convert to Data URI for storage
+        const scriptReader = new FileReader();
+        const scriptDataUri = await new Promise<string>((resolve, reject) => {
+            scriptReader.onload = () => resolve(scriptReader.result as string);
+            scriptReader.onerror = reject;
+            scriptReader.readAsDataURL(scriptBlob);
+        });
+
+        // 3. Read 'style' css (Optional)
+        let styleDataUri = '';
+        if (manifest.style) {
+            const styleFile = content.file(manifest.style);
+            if (styleFile) {
+                const styleBlob = await styleFile.async("blob");
+                 const styleReader = new FileReader();
+                 styleDataUri = await new Promise<string>((resolve, reject) => {
+                    styleReader.onload = () => resolve(styleReader.result as string);
+                    styleReader.onerror = reject;
+                    styleReader.readAsDataURL(styleBlob);
+                });
+            }
+        }
+
+        // 4. Create Virtual "Folder" Object
+        const newPlugin: PluginConfig = {
+            id: manifest.id,
+            manifest: manifest,
+            files: {
+                [manifest.main]: scriptDataUri,
+                ...(styleDataUri ? { [manifest.style!]: styleDataUri } : {})
+            },
+            enabled: true
+        };
+
+        // 5. Save/Update Global Config
+        // Remove existing version if present
+        const otherPlugins = (config.plugins || []).filter(p => p.id !== manifest.id);
+        
+        onUpdateConfig({
+            ...config,
+            plugins: [...otherPlugins, newPlugin]
+        });
+
+        alert(`Plugin "${manifest.name}" (v${manifest.version}) installed successfully!`);
+
+    } catch (err: any) {
+        console.error("Plugin Install Error:", err);
+        setUploadError(err.message || "Failed to parse plugin file.");
+    } finally {
+        setIsProcessing(false);
+        // Clear input
+        e.target.value = '';
+    }
   };
 
   // --- Render Helpers ---
@@ -157,88 +229,103 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, config, 
   const renderPlugins = () => {
     return (
         <div className="space-y-6">
-            <div className="bg-cyan-50 dark:bg-cyan-950/20 p-4 rounded-lg border border-cyan-100 dark:border-cyan-900/50 text-xs text-cyan-800 dark:text-cyan-300">
+            <div className="bg-indigo-50 dark:bg-indigo-950/20 p-4 rounded-lg border border-indigo-100 dark:border-indigo-900/50 text-xs text-indigo-800 dark:text-indigo-300">
                 <div className="flex items-start gap-2">
-                    <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+                    <Package size={16} className="mt-0.5 flex-shrink-0" />
                     <div>
-                        <strong>Experimental Feature:</strong> Install external modules (UMD) to extend functionality.
-                        Only install plugins from trusted sources.
+                        <strong>Plugin Manager (Zip Support):</strong> 
+                        <br/>
+                        Plugins must be a <code>.zip</code> file containing a <code>manifest.json</code> and the entry <code>.js</code> file.
+                        This allows plugins to be self-contained and share host dependencies (React, Lucide) for tiny file sizes.
                     </div>
                 </div>
             </div>
 
-            {/* Install Form */}
-            <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800">
-                <h3 className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-3">Install New Plugin</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-                    <input 
-                        placeholder="Display Name (e.g. Schema Builder)"
-                        value={newPluginName}
-                        onChange={e => setNewPluginName(e.target.value)}
-                        className="bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-3 py-2 text-xs"
-                    />
-                    <input 
-                        placeholder="Global Var Name (e.g. GalagaPlugin_Schema)"
-                        value={newPluginGlobal}
-                        onChange={e => setNewPluginGlobal(e.target.value)}
-                        className="bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-3 py-2 text-xs font-mono"
-                    />
-                    <div className="flex gap-2">
+            {/* Install Area */}
+            <div className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-cyan-500 dark:hover:border-cyan-500 transition-colors text-center relative">
+                {isProcessing ? (
+                     <div className="flex flex-col items-center justify-center py-4">
+                        <div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+                        <span className="text-xs font-bold uppercase text-slate-500">Extracting Plugin Package...</span>
+                     </div>
+                ) : (
+                    <>
+                        <Upload size={32} className="mx-auto text-slate-400 mb-2" />
+                        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Install New Plugin</h3>
+                        <p className="text-xs text-slate-500 mb-4">Drag and drop a <strong>.zip</strong> file here or click to browse.</p>
+                        
                         <input 
-                            placeholder="Script URL or Upload ->"
-                            value={newPluginUrl}
-                            onChange={e => setNewPluginUrl(e.target.value)}
-                            className="flex-1 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-3 py-2 text-xs font-mono"
+                            type="file" 
+                            accept=".zip" 
+                            onChange={handleZipUpload} 
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                         />
-                         <label className="flex items-center justify-center px-3 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded cursor-pointer border border-slate-300 dark:border-slate-700 transition-colors" title="Upload local .js build">
-                            <Upload size={14} />
-                            <input type="file" accept=".js" onChange={handleFileUpload} className="hidden" />
-                        </label>
+                        <button className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-xs font-bold uppercase shadow-sm pointer-events-none">
+                            Select Plugin Package
+                        </button>
+                    </>
+                )}
+                {uploadError && (
+                    <div className="mt-4 p-2 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 text-xs rounded border border-rose-200 dark:border-rose-900 font-mono">
+                        {uploadError}
                     </div>
-                </div>
-                <button 
-                    onClick={handleAddPlugin}
-                    disabled={!newPluginName || !newPluginUrl || !newPluginGlobal}
-                    className="w-full flex items-center justify-center gap-2 py-2 bg-slate-800 hover:bg-slate-700 dark:bg-white dark:hover:bg-slate-200 text-white dark:text-slate-900 rounded text-xs font-bold uppercase transition-colors disabled:opacity-50"
-                >
-                    <Plus size={14} /> Install Module
-                </button>
+                )}
             </div>
 
             {/* Installed List */}
             <div className="space-y-2">
+                <div className="flex items-center justify-between pb-2">
+                     <span className="text-xs font-bold uppercase text-slate-500">Installed Plugins</span>
+                     <button 
+                        onClick={handleReinstallDefaults}
+                        className="text-[10px] text-cyan-600 hover:text-cyan-700 flex items-center gap-1 font-bold uppercase"
+                     >
+                         <RefreshCw size={12} /> Reinstall Defaults
+                     </button>
+                </div>
                 {(config.plugins || []).length === 0 && (
                     <p className="text-center text-xs text-slate-400 italic py-4">No plugins installed.</p>
                 )}
-                {(config.plugins || []).map(plugin => (
-                    <div key={plugin.id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm">
-                        <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-full ${plugin.enabled ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-                                <Power size={14} />
+                {(config.plugins || []).map(plugin => {
+                    const isTheme = plugin.manifest.type === 'theme';
+                    return (
+                        <div key={plugin.id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm">
+                            <div className="flex items-center gap-3">
+                                <div className={`p-2 rounded-full ${plugin.enabled ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                                    <Power size={14} />
+                                </div>
+                                <div>
+                                    <h4 className={`text-sm font-bold ${plugin.enabled ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`}>
+                                        {plugin.manifest?.name || plugin.id} 
+                                        <span className="text-[10px] text-slate-400 font-normal ml-2">v{plugin.manifest?.version || '0.0.0'}</span>
+                                        <span className={`ml-2 text-[9px] uppercase px-1.5 py-0.5 rounded border ${isTheme ? 'bg-fuchsia-50 text-fuchsia-600 border-fuchsia-200 dark:bg-fuchsia-900/30 dark:text-fuchsia-400 dark:border-fuchsia-900' : 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-900'}`}>
+                                            {isTheme ? 'Theme' : 'Tool'}
+                                        </span>
+                                    </h4>
+                                    <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                                        <FileCode size={10} />
+                                        <code>{plugin.manifest?.main}</code>
+                                        {plugin.manifest?.style && <span className="text-indigo-500">+ Styles</span>}
+                                    </div>
+                                </div>
                             </div>
-                            <div>
-                                <h4 className={`text-sm font-bold ${plugin.enabled ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`}>{plugin.name}</h4>
-                                <code className="text-[10px] text-slate-500 bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded truncate max-w-[150px] inline-block" title={plugin.url}>
-                                    {plugin.url.startsWith('data:') ? '(Local File Upload)' : plugin.url}
-                                </code>
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    onClick={() => handleTogglePlugin(plugin.id)}
+                                    className={`px-3 py-1.5 rounded text-xs font-bold uppercase transition-colors ${plugin.enabled ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                                >
+                                    {plugin.enabled ? 'Active' : 'Disabled'}
+                                </button>
+                                <button 
+                                    onClick={() => handleDeletePlugin(plugin.id)}
+                                    className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
                             </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <button 
-                                onClick={() => handleTogglePlugin(plugin.id)}
-                                className={`px-3 py-1.5 rounded text-xs font-bold uppercase transition-colors ${plugin.enabled ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-                            >
-                                {plugin.enabled ? 'Active' : 'Disabled'}
-                            </button>
-                            <button 
-                                onClick={() => handleDeletePlugin(plugin.id)}
-                                className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
-                            >
-                                <Trash2 size={16} />
-                            </button>
-                        </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
         </div>
     )

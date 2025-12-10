@@ -1,13 +1,17 @@
+
 import React, { useState, useEffect } from 'react';
 import { Project, GlobalConfig } from './types';
 import ProjectList, { DEFAULT_PROJECT_KEYS, DEFAULT_STATUS_KEYS } from './components/ProjectList';
 import ProjectDetail from './components/ProjectDetail';
 import ConfirmModal from './components/ConfirmModal';
+import PluginBootstrap from './components/PluginBootstrap';
+import { getJiraPlugin } from './data/defaultPlugins';
 
 // --- Storage Keys ---
 const STORAGE_KEY_V1 = 'galaga_project_dashboard_v1';
 const STORAGE_KEY_V2 = 'galaga_projects_v2';
 const STORAGE_KEY_GLOBAL_CONFIG = 'galaga_global_config_v1';
+const STORAGE_KEY_INSTALLED_DEFAULTS = 'galaga_installed_default_plugins';
 
 const DEFAULT_PROJECT: Project = {
   id: 'proj_galagav_default',
@@ -94,12 +98,66 @@ const App: React.FC = () => {
       
       // Load Global Config
       const configData = localStorage.getItem(STORAGE_KEY_GLOBAL_CONFIG);
+      let loadedConfig: GlobalConfig = {
+        projectIcons: DEFAULT_PROJECT_KEYS,
+        statusIcons: DEFAULT_STATUS_KEYS,
+        plugins: [],
+        theme: 'dark'
+      };
+
       if (configData) {
         const parsed = JSON.parse(configData);
         // Ensure plugins array exists if loading from older config
         if (!parsed.plugins) parsed.plugins = [];
-        setGlobalConfig(parsed);
+        loadedConfig = parsed;
       }
+
+      // --- AUTO-INSTALL / UPDATE DEFAULT PLUGINS (Jira Theme) ---
+      // Logic: Only install defaults if they haven't been installed (and potentially deleted) before.
+      const previouslyInstalledIds: string[] = JSON.parse(localStorage.getItem(STORAGE_KEY_INSTALLED_DEFAULTS) || '[]');
+      const defaultPlugins = [getJiraPlugin()];
+      let defaultsTrackerChanged = false;
+
+      defaultPlugins.forEach(defPlugin => {
+          const hasBeenInstalled = previouslyInstalledIds.includes(defPlugin.id);
+          const existingPluginIndex = loadedConfig.plugins.findIndex(p => p.id === defPlugin.id);
+
+          if (!hasBeenInstalled) {
+              // Case 1: First time this app version is installing this default plugin
+              if (existingPluginIndex === -1) {
+                  console.log(`Installing default plugin: ${defPlugin.manifest.name}`);
+                  loadedConfig.plugins.push(defPlugin);
+              } else {
+                  // It exists (maybe user manually added it or from legacy version), 
+                  // just update it to ensure it's correct
+                  loadedConfig.plugins[existingPluginIndex] = {
+                      ...defPlugin,
+                      enabled: loadedConfig.plugins[existingPluginIndex].enabled
+                  };
+              }
+              // Mark as installed so we don't force it back if user deletes it later
+              previouslyInstalledIds.push(defPlugin.id);
+              defaultsTrackerChanged = true;
+          } else {
+              // Case 2: We have installed it before.
+              // If it exists in config, update it (patching).
+              // If it is MISSING, we assume user deleted it intentionally -> DO NOT RESTORE.
+              if (existingPluginIndex !== -1) {
+                  loadedConfig.plugins[existingPluginIndex] = {
+                      ...defPlugin,
+                      enabled: loadedConfig.plugins[existingPluginIndex].enabled
+                  };
+                  console.log(`Updated definition for: ${defPlugin.manifest.name}`);
+              }
+          }
+      });
+
+      if (defaultsTrackerChanged) {
+          localStorage.setItem(STORAGE_KEY_INSTALLED_DEFAULTS, JSON.stringify(previouslyInstalledIds));
+      }
+
+      setGlobalConfig(loadedConfig);
+
     } catch (e) {
       console.warn("Failed to load/migrate projects", e);
       setProjects([DEFAULT_PROJECT]);
@@ -115,6 +173,7 @@ const App: React.FC = () => {
   }, [projects, isInitialized]);
 
   useEffect(() => {
+    if (!isInitialized) return;
     try {
       localStorage.setItem(STORAGE_KEY_GLOBAL_CONFIG, JSON.stringify(globalConfig));
     } catch (e) {
@@ -123,7 +182,7 @@ const App: React.FC = () => {
          alert("Storage Quota Exceeded! Your plugin file might be too large to save locally. Please uninstall large plugins or use a URL hosted plugin.");
       }
     }
-  }, [globalConfig]);
+  }, [globalConfig, isInitialized]);
 
   // --- Actions ---
 
@@ -238,6 +297,7 @@ const App: React.FC = () => {
 
   return (
     <div className={globalConfig.theme === 'dark' ? 'dark' : ''}>
+      <PluginBootstrap globalConfig={globalConfig} />
       <div className="h-screen overflow-y-auto bg-slate-50 dark:bg-neutral-950 text-slate-900 dark:text-slate-200 font-sans transition-colors duration-300">
         {activeProject ? (
           <ProjectDetail 

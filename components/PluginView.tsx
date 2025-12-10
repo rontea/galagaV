@@ -11,13 +11,14 @@ interface PluginViewProps {
 }
 
 const PluginView: React.FC<PluginViewProps> = ({ config, project, onSave, theme }) => {
-  const { plugin, loading, error } = usePluginLoader(config.url, config.globalName);
+  // Now passing the full config object, not just URL
+  const { plugin, loading, error } = usePluginLoader(config);
 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-96 text-slate-500">
         <Loader2 size={48} className="animate-spin mb-4 text-cyan-500" />
-        <p className="font-mono text-xs uppercase tracking-widest">Initializing Module: {config.name}...</p>
+        <p className="font-mono text-xs uppercase tracking-widest">Initializing Module: {config.manifest?.name || 'Unknown'}...</p>
       </div>
     );
   }
@@ -51,7 +52,7 @@ const PluginView: React.FC<PluginViewProps> = ({ config, project, onSave, theme 
         project={project} 
         onSave={onSave} 
         theme={theme}
-        onNotify={(msg: string) => console.log(`[Plugin ${config.name}]: ${msg}`)}
+        onNotify={(msg: string) => console.log(`[Plugin ${config.manifest.name}]: ${msg}`)}
       />
     </div>
   );

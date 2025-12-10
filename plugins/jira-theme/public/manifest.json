@@ -1,0 +1,9 @@
+{
+  "id": "com.galagav.theme.jira",
+  "name": "Professional Jira Theme",
+  "version": "1.0.0",
+  "description": "Transforms the dashboard into a professional, blue-scale enterprise interface.",
+  "main": "index.js",
+  "style": "style.css",
+  "globalVar": "GalagaPlugin_JiraTheme"
+}

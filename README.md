@@ -1,6 +1,6 @@
 # GalagaV - Project Dashboard
 
-![Status](https://img.shields.io/badge/Status-Beta-blue) ![Version](https://img.shields.io/badge/Version-v0.9.0--beta-purple)
+![Status](https://img.shields.io/badge/Status-Beta-blue) ![Version](https://img.shields.io/badge/Version-v0.9.1--beta-purple)
 
 A modern, arcade-themed project management dashboard built with React, TypeScript, and Tailwind CSS. It combines retro aesthetics with powerful task management features, offering a unique "Gamified" interface for technical protocols and complex project planning.
 
@@ -8,121 +8,134 @@ A modern, arcade-themed project management dashboard built with React, TypeScrip
 
 ## 🚀 Features
 
-### 📋 Advanced Task Management
--   **Timeline Visualization**: Vertical timeline with drag-and-drop reordering.
--   **Focused Workspaces (Tabs)**:
-    -   **Task as Tab**: Open any complex task in its own dedicated tab for a distraction-free environment.
-    -   **Read/Edit Modes**: Toggle between a clean "Document View" for reading requirements and an "Edit Mode" for making changes.
-    -   **Deep Sub-Tasking**: Manage sub-tasks directly within the focused view.
--   **Drag & Drop Power**:
-    -   **Nest**: Drag a main task onto another to instantly convert it into a sub-task.
-    -   **Promote**: Drag a sub-task into the main timeline to make it a top-level task.
-    -   **Sort**: Reorder sub-tasks freely within their parent or move them to other parents.
--   **Sub-Task Power**:
-    -   **Numbering**: Auto-indexed sub-tasks (e.g., #1, #2).
-    -   **Compact View**: Completed and Failed sub-tasks shrink to save space.
-    -   **Auto-Edit**: New sub-tasks open immediately in edit mode for rapid entry.
+### 1. Project Management Dashboard
+The dashboard is designed for managing complex technical protocols, game design documents, or general to-do lists with a sci-fi/arcade aesthetic.
 
-### 🔌 Experimental Plugin System
+*   **Project CRUD**:
+    *   **Create**: Initialize new projects with a Name, Description, and System Prompt (Context).
+    *   **Import/Export**: Full JSON export of project data (including all history and steps) and drag-and-drop import.
+    *   **Archive**: Soft delete projects directly from the Dashboard or within the **Project Detail** view.
+    *   **Hard Delete**: Permanently destroy projects.
+    *   **Restore**: Recover projects from the archive.
+
+*   **Global Configuration**:
+    *   **Theme Toggle**: Switch between **Light Mode** (Clean) and **Dark Mode** (CRT/Arcade style).
+    *   **Project Settings Modal**: Dedicated interface to manage Project Identity, Icons, Categories, and Statuses.
+    *   **Config Portability**: **Export/Import** your Status and Category configurations as JSON to share setups between projects.
+    *   **Custom Statuses & Categories**: Define semantic workflows (e.g., "QA", "Design", "Blocked") with custom colors and icons.
+
+### 2. Advanced Task Management
+The core value proposition is the timeline view for managing tasks.
+
+*   **Timeline Visualization**:
+    *   Vertical timeline with drag-and-drop reordering.
+    *   **Visual Statuses**: Tasks change appearance based on status.
+    *   **Compact Mode**:
+        *   **Completed**: Shrinks to a minimalist green checkmark row.
+        *   **Failed**: Shrinks to a high-visibility red strikethrough row.
+    *   **Sub-Task Numbering**: Visual indexing (#1, #2) for nested requirements.
+    *   **Text Overflow**: Automatic word wrapping for long URLs or code snippets.
+
+*   **Drag & Drop Power**:
+    *   **Reorder**: Drag main tasks to reorder them in the list.
+    *   **Nesting**: Drag a main task *onto* another task to convert it into a **Sub-Task** automatically.
+    *   **Sub-Task Flexibility**:
+        *   **Sort**: Reorder sub-tasks within a list.
+        *   **Move**: Drag a sub-task onto a different Main Task card to move it there.
+        *   **Promote**: Drag a sub-task into the **gap** between Main Tasks to convert it into a top-level task.
+        *   *Safety*: Prevents nesting into tasks currently in "Edit Mode" to avoid UI confusion.
+
+*   **Task Operations**:
+    *   **Quick Add**: One-click creation. New tasks start empty and **auto-focus** for immediate typing.
+    *   **Click-to-Edit**: Edit Main Task titles directly in view mode without opening the full editor.
+    *   **Focused Workspaces (Tabs)**: Open any complex task in its own dedicated tab (Read/Edit modes).
+    *   **Sub-Tasks**:
+        *   **Auto-Edit**: New sub-tasks automatically enter edit mode.
+        *   **Copy Details**: Dedicated button to copy sub-task content.
+        *   **Compact View**: Completed/Failed sub-tasks also shrink to save space.
+    *   **Duplicate**: Clone a task (and all its sub-tasks) to create templates.
+    *   **Smart Copy**: Instantly copy task content to clipboard (content only, clean format).
+    *   **Quick Notes**: Sticky-note style scratchpad attached to every task for quick annotations.
+    *   **History/Versioning**: Track previous attempts or iterations of a task.
+
+### 3. Experimental Plugin System
 GalagaV features a **Micro-Frontend Architecture** allowing you to load external tools dynamically.
 
--   **Runtime Loading**: Load external React components (built as UMD libraries) via URL without rebuilding the dashboard.
--   **Shared Context**: Plugins receive project data, theme settings, and save hooks automatically.
--   **Use Cases**: Add custom tools like "Database Schema Builders", "Kanban Boards", or "Analytics Charts" as tabs.
-
-### 🎨 Customization & Visuals
--   **Visual States**:
-    -   **Completed**: Minimalist green checkmark row.
-    -   **Failed**: High-visibility red strikethrough row.
--   **Themes**: Light/Dark modes (CRT Scanline effect in Dark mode).
--   **Configurable**: Custom project icons, status colors, and categories.
-
-### 💾 Data & Offline
--   **Data Portability**: Export projects to JSON and import them anywhere.
--   **Offline First**: Works completely offline using LocalStorage.
--   **Optional Integrations**:
-    -   Google Gemini API (AI Context Generation)
+*   **Runtime Loading**: Load external React components (built as UMD libraries) without rebuilding the dashboard.
+*   **Local File Upload**: Drag and drop `.js` plugin builds directly into settings. They are converted to Data URIs and persisted locally.
+*   **Shared Context**: Plugins receive project data, theme settings, and save hooks automatically.
+*   **Use Cases**: Add custom tools like "Database Schema Builders", "Kanban Boards", or "Analytics Charts" as tabs.
 
 ---
 
-## 🛠️ Installation & Setup
+## 🛠 Tech Stack
+
+*   **Frontend Framework**: React 18
+*   **Language**: TypeScript
+*   **Build Tool**: Vite
+*   **Styling**: Tailwind CSS + PostCSS
+*   **Icons**: Lucide React
+*   **AI**: Google GenAI SDK (`@google/genai`)
+*   **Backend (Optional)**: Firebase (Firestore, Auth)
+
+---
+
+## 💻 Installation (Local Development)
+
+Follow these steps to run the project on your machine.
 
 ### Prerequisites
+*   Node.js (v16 or higher)
+*   npm or yarn
 
--   [Node.js](https://nodejs.org/) (v16 or higher)
--   npm (comes with Node.js) or yarn
-
-### 1. Download Source
-Ensure you have all project files (including `package.json`, `vite.config.ts`, `index.html`, and the `src` folder) in a directory.
-
-### 2. Install Dependencies
-Open your terminal/command prompt in the project folder and run:
-
-```bash
-npm install
-```
-
-### 3. Run Locally
-Start the development server:
-
-```bash
-npm run dev
-```
-
-The terminal will show a URL (usually `http://localhost:5173`). Open this in your browser.
+### Steps
+1.  **Clone/Download**: Extract the project files to a local directory.
+2.  **Install Dependencies**:
+    ```bash
+    npm install
+    ```
+3.  **Run Development Server**:
+    ```bash
+    npm run dev
+    ```
+4.  **Open Browser**: Navigate to `http://localhost:5173` (or the port shown in your terminal).
 
 ---
 
-## ⚙️ Changing the Port
+## ☁️ Deployment (Cloud)
 
-If port `5173` is busy or you want to use a specific port (e.g., `3000`), you can do so in two ways:
+Since this is a static application, it can be deployed to any static site hosting provider.
 
-### Method 1: Command Line (Temporary)
-Run the dev command with the `--port` flag:
-
-```bash
-npm run dev -- --port 3000
-```
-
-### Method 2: Config File (Permanent)
-1.  Open `vite.config.ts` in the root directory.
-2.  Locate the `server` block.
-3.  Change the `port` value.
-
-```typescript
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    port: 3000, // <--- Change this number
-    host: true,
-  }
-});
-```
-
----
-
-## 📦 Building for Production
-
-To create a static version of the app (HTML/CSS/JS) that you can upload to any web host:
+### Build Process
+Before deploying, you must build the production assets.
 
 1.  Run the build command:
     ```bash
     npm run build
     ```
-
 2.  The output files will be created in the `dist/` folder.
 3.  Upload the contents of `dist/` to your web server (Netlify, Vercel, Apache, Nginx, etc.).
 
 ---
 
-## 🔑 Environment Variables (Optional)
+## 🔑 Environment Configuration
 
-Create a `.env` file in the root directory to enable external services. The app will work fine without these.
+The app works **100% offline** by default using LocalStorage. To enable Cloud High Scores and AI features, create a `.env` file in the root directory:
 
 ```env
-# Google Gemini API (For AI Features)
-VITE_GEMINI_API_KEY=your_key
+# Google Gemini API (For AI Callsigns)
+VITE_GEMINI_API_KEY=your_gemini_api_key_here
+
+# Firebase Configuration (For Global High Scores)
+VITE_FIREBASE_API_KEY=your_firebase_key
+VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_bucket.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
 ```
+
+*Note: The application gracefully handles missing keys by falling back to local simulation modes.*
 
 ---
 
@@ -137,12 +150,14 @@ VITE_GEMINI_API_KEY=your_key
 │   │   ├── ProjectDetail.tsx  # Main Task Timeline View
 │   │   ├── PluginView.tsx     # External Module Loader
 │   │   ├── SettingsModal.tsx  # Global Config & Plugin Mgr
+│   │   ├── ProjectSettingsModal.tsx # Project Configuration
 │   │   └── ...
 │   ├── hooks/              # Custom React Hooks
 │   │   └── usePluginLoader.ts # Dynamic Script Injection
-│   ├── lib/                # Library Initializations
+│   ├── lib/                # Library Initializations (Firebase)
 │   ├── services/           # External API Logic
-│   │   └── geminiService.ts   # Google AI Integration
+│   │   ├── geminiService.ts   # Google AI Integration
+│   │   └── scoreService.ts    # Score Persistence
 │   ├── types.ts            # TypeScript Interfaces
 │   ├── App.tsx             # Main Routing/Layout Logic
 │   └── index.css           # Tailwind Imports & Global Styles

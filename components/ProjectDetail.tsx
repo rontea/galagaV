@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Header from './Header';
 import { Project, Step, StepVersion, CategoryConfig, StatusConfig, GlobalConfig, PluginConfig } from '../types';
@@ -1043,7 +1044,8 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
   const tabSteps = activeSteps.filter(s => s.isTab);
 
   // Filter enabled plugins
-  const enabledPlugins = (globalConfig.plugins || []).filter(p => p.enabled);
+  // FILTER: Only show 'tool' type plugins (default) as tabs. 'theme' plugins are background only.
+  const enabledToolPlugins = (globalConfig.plugins || []).filter(p => p.enabled && p.manifest.type !== 'theme');
 
   // --- Step Tab View Component (Focused Mode) ---
   const renderFocusedStep = (step: Step) => {
@@ -1323,15 +1325,15 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
               );
           })}
 
-          {/* Plugin Tabs */}
-          {enabledPlugins.map(plugin => (
+          {/* Plugin Tabs (Tools Only) */}
+          {enabledToolPlugins.map(plugin => (
              <button
                 key={plugin.id}
                 onClick={() => setActiveTab(plugin.id)}
                 className={`px-4 py-3 text-xs font-bold uppercase tracking-wider whitespace-nowrap border-b-2 transition-colors flex-shrink-0 ${activeTab === plugin.id ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
              >
                 <div className="flex items-center gap-2">
-                   <Blocks size={14} /> {plugin.name}
+                   <Blocks size={14} /> {plugin.manifest?.name || plugin.id}
                 </div>
              </button>
           ))}
@@ -1889,13 +1891,13 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                 );
             }
             
-            // 2. Plugins
-            const activePlugin = enabledPlugins.find(p => p.id === activeTab);
-            if (activePlugin) {
+            // 2. Plugins (Tool Mode Only)
+            const activeToolPlugin = enabledToolPlugins.find(p => p.id === activeTab);
+            if (activeToolPlugin) {
                  return (
-                   <div key={activePlugin.id} className="animate-in fade-in duration-300">
+                   <div key={activeToolPlugin.id} className="animate-in fade-in duration-300">
                       <PluginView 
-                        config={activePlugin}
+                        config={activeToolPlugin}
                         project={project}
                         onSave={onUpdateProject}
                         theme={globalConfig.theme}
