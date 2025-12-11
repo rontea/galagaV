@@ -15,7 +15,11 @@ export const usePluginLoader = (config: PluginConfig): PluginState => {
   });
 
   useEffect(() => {
-    if (!config || !config.enabled) return;
+    // If config is missing or disabled, do nothing (or reset)
+    if (!config || !config.enabled) {
+      setState({ plugin: null, loading: false, error: null });
+      return;
+    }
 
     const { manifest, files } = config;
     const globalName = manifest.globalVar;
@@ -27,63 +31,107 @@ export const usePluginLoader = (config: PluginConfig): PluginState => {
         return;
     }
 
-    // 1. Check if already loaded globally
-    const existingPlugin = (window as any)[globalName];
-    if (existingPlugin) {
-      const resolved = existingPlugin.default || existingPlugin;
-      setState({ plugin: resolved, loading: false, error: null });
-      return;
-    }
-
     setState({ plugin: null, loading: true, error: null });
 
-    // 2. Inject CSS if present
+    // 1. Inject CSS (Always ensure it exists when component mounts)
+    let link: HTMLLinkElement | null = null;
     if (styleUrl) {
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = styleUrl;
-        link.id = `plugin-style-${config.id}`;
-        document.head.appendChild(link);
+        const linkId = `plugin-style-${config.id}`;
+        // Check if existing to prevent duplicates
+        let existingLink = document.getElementById(linkId) as HTMLLinkElement;
+        if (!existingLink) {
+            link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = styleUrl;
+            link.id = linkId;
+            document.head.appendChild(link);
+        } else {
+            link = existingLink;
+        }
     }
 
-    // 3. Inject JS
-    const script = document.createElement('script');
-    script.src = mainScriptUrl;
-    script.async = true;
+    // 2. Handle JS
+    // We create a function to handle script injection so we can return cleanup handles
+    const loadScript = () => {
+        const scriptId = `plugin-script-${config.id}`;
+        
+        // A. Check Memory: If global var exists, use it immediately
+        if ((window as any)[globalName]) {
+             const loadedModule = (window as any)[globalName];
+             const resolved = loadedModule.default || loadedModule;
+             setState({ plugin: resolved, loading: false, error: null });
+             // We return null handles because we didn't create a new script tag this pass
+             return null; 
+        }
 
-    const handleLoad = () => {
-      const loadedModule = (window as any)[globalName];
-      if (loadedModule) {
-        const resolved = loadedModule.default || loadedModule;
-        setState({ plugin: resolved, loading: false, error: null });
-      } else {
-        setState({ 
-          plugin: null, 
-          loading: false, 
-          error: `Script loaded but 'window.${globalName}' was not found. Check the plugin's build configuration.` 
-        });
+        // B. Check DOM: If script tag exists (loading in progress), attach listeners to it
+        let script = document.getElementById(scriptId) as HTMLScriptElement;
+
+        if (!script) {
+            script = document.createElement('script');
+            script.src = mainScriptUrl;
+            script.async = true;
+            script.id = scriptId;
+            document.body.appendChild(script);
+        }
+
+        const handleLoad = () => {
+          const loadedModule = (window as any)[globalName];
+          if (loadedModule) {
+            const resolved = loadedModule.default || loadedModule;
+            setState({ plugin: resolved, loading: false, error: null });
+          } else {
+            setState({ 
+              plugin: null, 
+              loading: false, 
+              error: `Script loaded but 'window.${globalName}' was not found.` 
+            });
+          }
+        };
+
+        const handleError = () => {
+          setState({ 
+            plugin: null, 
+            loading: false, 
+            error: `Failed to load plugin script: ${manifest.main}` 
+          });
+        };
+
+        script.addEventListener('load', handleLoad);
+        script.addEventListener('error', handleError);
+
+        return { script, handleLoad, handleError };
+    };
+
+    const scriptHandles = loadScript();
+
+    // CLEANUP FUNCTION
+    // This runs when the component unmounts (e.g., plugin disabled or deleted)
+    return () => {
+      // 1. Remove CSS
+      if (link && document.head.contains(link)) {
+          document.head.removeChild(link);
+      }
+
+      // 2. Remove JS
+      if (scriptHandles) {
+          const { script, handleLoad, handleError } = scriptHandles;
+          script.removeEventListener('load', handleLoad);
+          script.removeEventListener('error', handleError);
+          
+          // Remove the script tag
+          if (document.body.contains(script)) {
+              document.body.removeChild(script);
+          }
+          
+          // 3. Delete Global Variable
+          // This ensures that if the plugin is re-added, it re-initializes fresh.
+          if ((window as any)[globalName]) {
+              delete (window as any)[globalName];
+          }
       }
     };
-
-    const handleError = () => {
-      setState({ 
-        plugin: null, 
-        loading: false, 
-        error: `Failed to load plugin script: ${manifest.main}` 
-      });
-    };
-
-    script.addEventListener('load', handleLoad);
-    script.addEventListener('error', handleError);
-
-    document.body.appendChild(script);
-
-    return () => {
-      script.removeEventListener('load', handleLoad);
-      script.removeEventListener('error', handleError);
-      // We do not remove the script/link tags to allow caching and prevent rapid reload flicker
-    };
-  }, [config.id, config.manifest.main]); // Re-run only if ID or entry point changes
+  }, [config.id, config.enabled, config.manifest.main]); // Re-run if ID or entry point changes
 
   return state;
 };

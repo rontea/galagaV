@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Project, GlobalConfig } from './types';
 import ProjectList, { DEFAULT_PROJECT_KEYS, DEFAULT_STATUS_KEYS } from './components/ProjectList';
@@ -12,6 +11,7 @@ const STORAGE_KEY_V1 = 'galaga_project_dashboard_v1';
 const STORAGE_KEY_V2 = 'galaga_projects_v2';
 const STORAGE_KEY_GLOBAL_CONFIG = 'galaga_global_config_v1';
 const STORAGE_KEY_INSTALLED_DEFAULTS = 'galaga_installed_default_plugins';
+const STORAGE_KEY_BLOCKED_PLUGINS = 'galaga_blocked_plugins';
 
 const DEFAULT_PROJECT: Project = {
   id: 'proj_galagav_default',
@@ -25,28 +25,32 @@ const DEFAULT_PROJECT: Project = {
       title: 'Initialize Project Structure',
       category: 'frontend',
       status: 'completed',
-      content: 'Setup React, Tailwind CSS, and basic file architecture including types and firebase config.'
+      content: 'Setup React, Tailwind CSS, and basic file architecture including types and firebase config.',
+      createdAt: Date.now()
     },
     {
       id: 'step_2',
       title: 'Game Loop Engine',
       category: 'frontend',
       status: 'in-progress',
-      content: 'Implement useGameLoop hook to handle physics, collision detection, and entity state management.'
+      content: 'Implement useGameLoop hook to handle physics, collision detection, and entity state management.',
+      createdAt: Date.now()
     },
     {
       id: 'step_3',
       title: 'Firestore High Scores',
       category: 'backend',
       status: 'pending',
-      content: 'Integrate Firebase Firestore to save and retrieve high scores and pilot profiles.'
+      content: 'Integrate Firebase Firestore to save and retrieve high scores and pilot profiles.',
+      createdAt: Date.now()
     },
     {
       id: 'step_4',
       title: 'AI Callsign Generator',
       category: 'backend',
       status: 'pending',
-      content: 'Connect Google Gemini API to generate cool sci-fi callsigns based on user pilot names.'
+      content: 'Connect Google Gemini API to generate cool sci-fi callsigns based on user pilot names.',
+      createdAt: Date.now()
     }
   ]
 };
@@ -114,11 +118,19 @@ const App: React.FC = () => {
 
       // --- AUTO-INSTALL / UPDATE DEFAULT PLUGINS (Jira Theme) ---
       // Logic: Only install defaults if they haven't been installed (and potentially deleted) before.
+      // AND if they haven't been permanently blocked by the user.
       const previouslyInstalledIds: string[] = JSON.parse(localStorage.getItem(STORAGE_KEY_INSTALLED_DEFAULTS) || '[]');
+      const blockedPlugins: string[] = JSON.parse(localStorage.getItem(STORAGE_KEY_BLOCKED_PLUGINS) || '[]');
+      
       const defaultPlugins = [getJiraPlugin()];
       let defaultsTrackerChanged = false;
 
       defaultPlugins.forEach(defPlugin => {
+          // 1. Check Blocklist
+          if (blockedPlugins.includes(defPlugin.id)) {
+              return; // Skip blocked plugins entirely
+          }
+
           const hasBeenInstalled = previouslyInstalledIds.includes(defPlugin.id);
           const existingPluginIndex = loadedConfig.plugins.findIndex(p => p.id === defPlugin.id);
 
@@ -140,8 +152,9 @@ const App: React.FC = () => {
               defaultsTrackerChanged = true;
           } else {
               // Case 2: We have installed it before.
-              // If it exists in config, update it (patching).
-              // If it is MISSING, we assume user deleted it intentionally -> DO NOT RESTORE.
+              // If it exists in config, update it to patch any code changes, 
+              // BUT respect the previous enable/disable state if possible,
+              // AND DO NOT Re-add if user deleted it (handled by not pushing if index is -1).
               if (existingPluginIndex !== -1) {
                   loadedConfig.plugins[existingPluginIndex] = {
                       ...defPlugin,

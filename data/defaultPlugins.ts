@@ -1,8 +1,17 @@
+import { PluginConfig, PluginManifest } from '../types';
 
+export const JIRA_MANIFEST: PluginManifest = {
+  id: "com.galagav.theme.jira",
+  name: "Professional Jira Theme",
+  version: "1.0.0",
+  description: "Transforms the dashboard into a professional, blue-scale enterprise interface.",
+  main: "index.js",
+  style: "style.css",
+  globalVar: "GalagaPlugin_JiraTheme",
+  type: "theme"
+};
 
-import { PluginConfig } from '../types';
-
-const JIRA_CSS = `
+export const JIRA_CSS = `
 /* JIRA / Enterprise Theme Overrides */
 @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
 
@@ -51,12 +60,30 @@ button.bg-cyan-600:hover, button.bg-emerald-600:hover {
   background-color: #0747A6 !important;
 }
 
+/* Inputs */
+input, textarea, select {
+  border-radius: 3px !important;
+  border: 2px solid #DFE1E6 !important;
+  background-color: #FAFBFC !important;
+  color: #172B4D !important;
+}
+input:focus, textarea:focus, select:focus {
+  border-color: #4C9AFF !important;
+  background-color: #FFFFFF !important;
+  box-shadow: none !important;
+}
+
+/* Status Badges */
+span.rounded-full, div.rounded {
+  border-radius: 3px !important;
+}
+
 /* Remove Arcade Effects */
 .scanlines { display: none !important; }
 .font-mono { font-family: 'Roboto', sans-serif !important; }
 `;
 
-const JIRA_JS = `
+export const JIRA_JS = `
 (function(global) {
   const React = global.React;
   
@@ -88,18 +115,9 @@ export const getJiraPlugin = (): PluginConfig => {
   const jsUri = `data:text/javascript;base64,${toBase64(JIRA_JS)}`;
 
   return {
-    id: "com.galagav.theme.jira",
+    id: JIRA_MANIFEST.id,
     enabled: false, // Default to disabled
-    manifest: {
-      id: "com.galagav.theme.jira",
-      name: "Professional Jira Theme",
-      version: "1.0.0",
-      description: "Transforms the dashboard into a professional, blue-scale enterprise interface.",
-      main: "index.js",
-      style: "style.css",
-      globalVar: "GalagaPlugin_JiraTheme",
-      type: "theme"
-    },
+    manifest: JIRA_MANIFEST,
     files: {
       "index.js": jsUri,
       "style.css": cssUri

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Header from './Header';
 import { Project, Step, StepVersion, CategoryConfig, StatusConfig, GlobalConfig, PluginConfig } from '../types';
@@ -12,7 +13,7 @@ import {
   Edit2, Save, Plus, Trash2, Bot, Copy, Check, GripVertical, X, Fingerprint, Terminal,
   AlertOctagon, ChevronDown, ChevronRight, GitBranch, MoveUp, Minimize2, Maximize2, CornerDownRight,
   ChevronUp, Tag, Layers, Play, Pause, Flag, Archive, Bookmark, Zap, AlertTriangle, Activity,
-  RefreshCw, FileWarning, StickyNote, Files, AppWindow, Blocks, ArrowLeft, Eye, Settings
+  RefreshCw, FileWarning, StickyNote, Files, AppWindow, Blocks, ArrowLeft, Eye, Settings, Calendar
 } from 'lucide-react';
 
 // --- Utility: Robust Copy to Clipboard ---
@@ -46,6 +47,14 @@ const copyToClipboard = async (text: string): Promise<boolean> => {
     console.error("Copy failed", err);
     return false;
   }
+};
+
+// --- Helper: Date Formatting for Input ---
+const toLocalISOString = (timestamp?: number) => {
+  if (!timestamp) return '';
+  const date = new Date(timestamp);
+  const offset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
 };
 
 // --- Constants ---
@@ -213,13 +222,14 @@ const SubStepCard: React.FC<{
   const isFailed = step.status === 'failed';
   const showCompact = (isCompleted || isFailed) && !expanded && !isEditing;
 
-  const updateField = (field: keyof Step, value: string) => {
+  const updateField = (field: keyof Step, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const handleSave = () => {
     const finalData = { ...formData };
     if (!finalData.title.trim()) finalData.title = "Untitled Sub-Task";
+    if (!finalData.createdAt) finalData.createdAt = Date.now();
     onUpdate(finalData);
     setIsEditing(false);
   };
@@ -307,6 +317,23 @@ const SubStepCard: React.FC<{
                         </select>
                      </div>
                    </div>
+                </div>
+
+                {/* Date Input */}
+                <div>
+                   <label htmlFor={`sub-date-${step.id}`} className="text-[9px] uppercase tracking-widest text-slate-500 font-bold block mb-1">Created At</label>
+                   <input
+                      id={`sub-date-${step.id}`}
+                      type="datetime-local"
+                      value={toLocalISOString(formData.createdAt)}
+                      onChange={(e) => {
+                        const date = new Date(e.target.value);
+                        if (!isNaN(date.getTime())) {
+                            updateField('createdAt', date.getTime());
+                        }
+                      }}
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-2 py-1.5 text-xs text-slate-800 dark:text-slate-300 focus:border-cyan-500 outline-none font-mono"
+                   />
                 </div>
 
                 {/* Content Input */}
@@ -440,6 +467,12 @@ const SubStepCard: React.FC<{
         {!isEditing && expanded && (
             <div className="px-3 pb-3 pt-0 animate-in fade-in slide-in-from-top-1">
             <div className="border-t border-slate-200 dark:border-slate-800/50 pt-3 mt-1">
+                {step.createdAt && (
+                  <div className="mb-2 flex items-center gap-1 text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+                    <Calendar size={10} />
+                    Created: {new Date(step.createdAt).toLocaleString()}
+                  </div>
+                )}
                 <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-light leading-relaxed mb-3 pl-1 break-words">
                 {step.content}
                 </p>
@@ -638,6 +671,9 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
     if (!finalData.title || !finalData.title.trim()) {
       finalData.title = "Untitled Task";
     }
+    if (!finalData.createdAt) {
+      finalData.createdAt = Date.now();
+    }
 
     onUpdateProject({
       ...project,
@@ -659,7 +695,8 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
       status: 'pending',
       content: '', // Empty default so placeholder shows and user can type immediately
       history: [],
-      subSteps: []
+      subSteps: [],
+      createdAt: Date.now()
     };
 
     onUpdateProject({
@@ -706,8 +743,10 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
         isTab: false, // Don't duplicate tab state by default
         subSteps: originalStep.subSteps?.map((sub, idx) => ({
             ...sub,
-            id: `step_${timestamp}_sub_${idx}`
-        })) || []
+            id: `step_${timestamp}_sub_${idx}`,
+            createdAt: Date.now()
+        })) || [],
+        createdAt: Date.now()
     };
 
     const updatedSteps = [...project.steps];
@@ -741,7 +780,8 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
           category: s.category, 
           status: 'pending',
           content: '',
-          subSteps: []
+          subSteps: [],
+          createdAt: Date.now()
         };
         const currentSubs = s.subSteps || [];
         return { ...s, subSteps: [...currentSubs, newSub] };
@@ -841,7 +881,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
     }
   };
 
-  const updateField = (field: keyof Step, value: string) => {
+  const updateField = (field: keyof Step, value: any) => {
     setEditFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -1072,8 +1112,13 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
          if (focusedForm) {
             const liveStepIndex = project.steps.findIndex(s => s.id === step.id);
             const updatedSteps = [...project.steps];
+            
+            // Ensure created at exists
+            const finalData = { ...focusedForm };
+            if (!finalData.createdAt) finalData.createdAt = Date.now();
+
             // Update the step with form data
-            updatedSteps[liveStepIndex] = focusedForm;
+            updatedSteps[liveStepIndex] = finalData;
             onUpdateProject({ ...project, steps: updatedSteps });
             setFocusedEditing(false);
             setFocusedForm(null);
@@ -1129,7 +1174,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                                 autoFocus
                              />
 
-                             <div className="flex gap-4">
+                             <div className="flex flex-wrap gap-4">
                                 <div className="w-40">
                                     <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Category</label>
                                     <div className="relative">
@@ -1155,6 +1200,20 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                                         </select>
                                         <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                                     </div>
+                                </div>
+                                <div className="w-48">
+                                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Created At</label>
+                                    <input 
+                                        type="datetime-local"
+                                        value={toLocalISOString(data.createdAt)}
+                                        onChange={(e) => {
+                                            const date = new Date(e.target.value);
+                                            if (!isNaN(date.getTime())) {
+                                                updateForm('createdAt', date.getTime());
+                                            }
+                                        }}
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-3 py-2 text-xs font-mono text-slate-700 dark:text-slate-300 outline-none focus:border-cyan-500"
+                                    />
                                 </div>
                             </div>
 
@@ -1205,6 +1264,13 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                                         <StatusIcon size={14} />
                                         {statusConfig.label}
                                      </span>
+
+                                     {data.createdAt && (
+                                        <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-xs font-mono">
+                                            <Calendar size={12} />
+                                            {new Date(data.createdAt).toLocaleString()}
+                                        </span>
+                                     )}
                                  </div>
                              </div>
                              
@@ -1508,20 +1574,23 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                                           {isEditing ? (
                                             // --- EDIT MODE ---
                                             <div className="flex flex-col gap-5 animate-in fade-in duration-300">
-                                              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
-                                                <div className="flex flex-col flex-1 mr-4">
-                                                    <label htmlFor={`step-title-${step.id}`} className="text-[10px] uppercase tracking-widest text-cyan-600 dark:text-cyan-500 font-bold mb-1">Editing Task</label>
-                                                    <input 
-                                                      id={`step-title-${step.id}`}
-                                                      className="bg-transparent text-lg font-bold text-slate-900 dark:text-white focus:outline-none focus:border-b focus:border-cyan-500 placeholder-slate-400 dark:placeholder-slate-600 w-full"
-                                                      value={editFormData.title}
-                                                      onChange={(e) => updateField('title', e.target.value)}
-                                                      placeholder="Step Title"
-                                                      autoFocus
-                                                    />
+                                              <div className="flex flex-col border-b border-slate-200 dark:border-slate-800 pb-4">
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <div className="flex-1 mr-4">
+                                                        <label htmlFor={`step-title-${step.id}`} className="text-[10px] uppercase tracking-widest text-cyan-600 dark:text-cyan-500 font-bold mb-1">Editing Task</label>
+                                                        <input 
+                                                        id={`step-title-${step.id}`}
+                                                        className="bg-transparent text-lg font-bold text-slate-900 dark:text-white focus:outline-none focus:border-b focus:border-cyan-500 placeholder-slate-400 dark:placeholder-slate-600 w-full"
+                                                        value={editFormData.title}
+                                                        onChange={(e) => updateField('title', e.target.value)}
+                                                        placeholder="Step Title"
+                                                        autoFocus
+                                                        />
+                                                    </div>
                                                 </div>
-                                                <div className="flex gap-3">
-                                                  <div className="flex flex-col">
+                                                
+                                                <div className="flex flex-wrap gap-3">
+                                                  <div className="flex flex-col w-32">
                                                     <label htmlFor={`step-cat-${step.id}`} className="text-[9px] uppercase tracking-widest text-slate-500 font-bold mb-1">Category</label>
                                                     <select 
                                                         id={`step-cat-${step.id}`}
@@ -1534,7 +1603,7 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                                                         ))}
                                                       </select>
                                                   </div>
-                                                  <div className="flex flex-col">
+                                                  <div className="flex flex-col w-32">
                                                     <label htmlFor={`step-stat-${step.id}`} className="text-[9px] uppercase tracking-widest text-slate-500 font-bold mb-1">Status</label>
                                                     <select 
                                                         id={`step-stat-${step.id}`}
@@ -1546,6 +1615,21 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                                                           <option key={s.key} value={s.key}>{s.label}</option>
                                                         ))}
                                                       </select>
+                                                  </div>
+                                                  <div className="flex flex-col w-40">
+                                                    <label htmlFor={`step-date-${step.id}`} className="text-[9px] uppercase tracking-widest text-slate-500 font-bold mb-1">Created At</label>
+                                                    <input 
+                                                        type="datetime-local"
+                                                        id={`step-date-${step.id}`}
+                                                        value={toLocalISOString(editFormData.createdAt)}
+                                                        onChange={(e) => {
+                                                            const date = new Date(e.target.value);
+                                                            if (!isNaN(date.getTime())) {
+                                                                updateField('createdAt', date.getTime());
+                                                            }
+                                                        }}
+                                                        className="bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300 rounded p-1.5 focus:border-cyan-500 outline-none"
+                                                      />
                                                   </div>
                                                 </div>
                                               </div>
@@ -1632,9 +1716,17 @@ const ProjectDetail: React.FC<ProjectDetailProps> = ({
                                                       {step.category}
                                                     </span>
                                                   </div>
-                                                  <div className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-${statusConfig.color}-600 dark:text-${statusConfig.color}-400`}>
-                                                    <StatusIcon size={14} aria-hidden="true" />
-                                                    {statusConfig.label}
+                                                  <div className="flex flex-wrap items-center gap-2">
+                                                      <div className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-${statusConfig.color}-600 dark:text-${statusConfig.color}-400`}>
+                                                        <StatusIcon size={14} aria-hidden="true" />
+                                                        {statusConfig.label}
+                                                      </div>
+                                                      {step.createdAt && (
+                                                        <div className="flex items-center gap-1 text-[10px] text-slate-400 dark:text-slate-500 font-mono ml-2 border-l border-slate-200 dark:border-slate-800 pl-2">
+                                                            <Calendar size={10} />
+                                                            {new Date(step.createdAt).toLocaleString()}
+                                                        </div>
+                                                      )}
                                                   </div>
                                                 </div>
                                                 <div className="flex items-start gap-2">

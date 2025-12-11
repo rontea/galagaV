@@ -97,6 +97,7 @@ export interface Step {
   archivedAt?: number; // Timestamp if soft-deleted/archived
   notes?: string; // Quick scratchpad notes
   isTab?: boolean; // If true, shows as a main navigation tab
+  createdAt?: number; // Creation timestamp
 }
 
 export interface Project {
