@@ -8,6 +8,9 @@ interface PluginState {
   error: string | null;
 }
 
+// Global registry to track scripts being loaded to avoid race conditions
+const loadingScripts = new Set<string>();
+
 export const usePluginLoader = (config: PluginConfig): PluginState => {
   const [state, setState] = useState<PluginState>({
     plugin: null,
@@ -30,13 +33,23 @@ export const usePluginLoader = (config: PluginConfig): PluginState => {
         setState({ 
           plugin: null, 
           loading: false, 
-          error: `Configuration Error: Entry file '${manifest.main}' not found in the package resources. (Available: ${Object.keys(files).join(', ')})` 
+          error: `Configuration Error: Entry file '${manifest.main}' not found in resources.` 
         });
         return;
     }
 
+    // Check if already in global scope
+    if ((window as any)[globalName]) {
+      const loadedModule = (window as any)[globalName];
+      const resolved = loadedModule.default || loadedModule;
+      console.log(`[PLUGIN_BRIDGE] Module verified: window.${globalName}`);
+      setState({ plugin: resolved, loading: false, error: null });
+      return;
+    }
+
     setState({ plugin: null, loading: true, error: null });
 
+    // Stylesheet injection
     let link: HTMLLinkElement | null = null;
     if (styleUrl) {
         const linkId = `plugin-style-${config.id}`;
@@ -52,73 +65,59 @@ export const usePluginLoader = (config: PluginConfig): PluginState => {
         }
     }
 
-    const loadScript = () => {
-        const scriptId = `plugin-script-${config.id}`;
-        
-        if ((window as any)[globalName]) {
-             const loadedModule = (window as any)[globalName];
-             const resolved = loadedModule.default || loadedModule;
-             setState({ plugin: resolved, loading: false, error: null });
-             return null; 
-        }
+    const scriptId = `plugin-script-${config.id}`;
+    let script = document.getElementById(scriptId) as HTMLScriptElement;
 
-        let script = document.getElementById(scriptId) as HTMLScriptElement;
-
-        if (!script) {
-            script = document.createElement('script');
-            script.src = mainScriptUrl;
-            script.async = true;
-            script.id = scriptId;
-            document.body.appendChild(script);
-        }
-
-        const handleLoad = () => {
-          const loadedModule = (window as any)[globalName];
-          if (loadedModule) {
-            const resolved = loadedModule.default || loadedModule;
-            setState({ plugin: resolved, loading: false, error: null });
-          } else {
-            setState({ 
-              plugin: null, 
-              loading: false, 
-              error: `Runtime Error: Script loaded, but 'window.${globalName}' was not initialized. Check your Vite 'name' config.` 
-            });
-          }
-        };
-
-        const handleError = () => {
-          setState({ 
-            plugin: null, 
-            loading: false, 
-            error: `Network Error: Failed to load entry point '${manifest.main}'. The file might be corrupted or incorrectly served.` 
-          });
-        };
-
-        script.addEventListener('load', handleLoad);
-        script.addEventListener('error', handleError);
-
-        return { script, handleLoad, handleError };
+    const handleLoad = () => {
+      loadingScripts.delete(scriptId);
+      const loadedModule = (window as any)[globalName];
+      if (loadedModule) {
+        const resolved = loadedModule.default || loadedModule;
+        console.log(`[PLUGIN_BRIDGE] Successfully bridged module: window.${globalName}`);
+        setState({ plugin: resolved, loading: false, error: null });
+      } else {
+        setState({ 
+          plugin: null, 
+          loading: false, 
+          error: `Runtime Error: Global 'window.${globalName}' was not initialized. Check plugin's build configuration.` 
+        });
+      }
     };
 
-    const scriptHandles = loadScript();
+    const handleError = () => {
+      loadingScripts.delete(scriptId);
+      setState({ 
+        plugin: null, 
+        loading: false, 
+        error: `Network Error: Failed to execute entry point '${manifest.main}'.` 
+      });
+    };
+
+    if (!script) {
+        script = document.createElement('script');
+        script.src = mainScriptUrl;
+        script.async = true;
+        script.id = scriptId;
+        loadingScripts.add(scriptId);
+        script.addEventListener('load', handleLoad);
+        script.addEventListener('error', handleError);
+        document.body.appendChild(script);
+    } else {
+        // If script tag exists but module not yet in window, wait for it
+        if (loadingScripts.has(scriptId)) {
+            script.addEventListener('load', handleLoad);
+            script.addEventListener('error', handleError);
+        } else {
+            // Already loaded but maybe not assigned to state yet
+            handleLoad();
+        }
+    }
 
     return () => {
-      if (link && document.head.contains(link)) {
-          document.head.removeChild(link);
-      }
-
-      if (scriptHandles) {
-          const { script, handleLoad, handleError } = scriptHandles;
-          script.removeEventListener('load', handleLoad);
-          script.removeEventListener('error', handleError);
-          
-          if (document.body.contains(script)) {
-              document.body.removeChild(script);
-          }
-          
-          if ((window as any)[globalName]) {
-              delete (window as any)[globalName];
-          }
+      // We don't remove script tags for plugins as multiple components might be using them
+      if (script) {
+        script.removeEventListener('load', handleLoad);
+        script.removeEventListener('error', handleError);
       }
     };
   }, [config.id, config.enabled, config.manifest.main]);

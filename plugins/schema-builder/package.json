@@ -1,5 +1,6 @@
+
 {
-  "name": "galaga-plugin-jira-theme",
+  "name": "galaga-plugin-schema-builder",
   "private": true,
   "version": "1.0.0",
   "type": "module",

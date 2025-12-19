@@ -1,68 +1,5 @@
 
-
-export interface Position {
-  x: number;
-  y: number;
-}
-
-export interface Entity extends Position {
-  width: number;
-  height: number;
-  active: boolean;
-}
-
-export interface Player extends Entity {
-  speed: number;
-  cooldown: number;
-}
-
-export interface Bullet extends Entity {
-  dy: number;
-  isEnemy: boolean;
-}
-
-export interface Enemy extends Entity {
-  type: 'bee' | 'butterfly' | 'boss';
-  scoreValue: number;
-  originalX: number;
-  originalY: number;
-  phase: number; // For movement patterns
-}
-
-export interface Particle extends Entity {
-  dx: number;
-  dy: number;
-  life: number;
-  color: string;
-}
-
-export interface GameState {
-  score: number;
-  lives: number;
-  level: number;
-  isPlaying: boolean;
-  isGameOver: boolean;
-  highScore: number;
-}
-
-// Firestore / Data Models
-export interface UserProfile {
-  uid: string;
-  pilotName: string;
-  themePreference: 'retro' | 'modern';
-  createdAt: number;
-}
-
-export interface HighScore {
-  id?: string;
-  userId: string;
-  pilotName: string;
-  score: number;
-  timestamp: number;
-}
-
 // Project Dashboard Models
-// Changed from union to string to support custom statuses
 export type StepStatus = string; 
 
 export interface StepVersion {
@@ -110,6 +47,80 @@ export interface Project {
   statuses?: StatusConfig[]; // Custom statuses added by user
   steps: Step[];
   deletedAt?: number; // Timestamp if soft-deleted/archived
+}
+
+// User Profile (Maintained for preferences)
+// Updated to include pilotName for the arcade game and additional themes
+export interface UserProfile {
+  uid: string;
+  name: string;
+  pilotName?: string;
+  themePreference: 'light' | 'dark' | 'retro' | 'modern';
+  createdAt: number;
+}
+
+// --- GAME TYPES ---
+
+export interface HighScore {
+  id?: string;
+  userId: string;
+  pilotName: string;
+  score: number;
+  timestamp: number;
+}
+
+export interface Player {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  active: boolean;
+  speed: number;
+  cooldown: number;
+}
+
+export interface Bullet {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  dy: number;
+  isEnemy: boolean;
+  active: boolean;
+}
+
+export interface Enemy {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  active: boolean;
+  type: 'bee' | 'butterfly' | 'boss';
+  scoreValue: number;
+  originalX: number;
+  originalY: number;
+  phase: number;
+}
+
+export interface Particle {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  active: boolean;
+  dx: number;
+  dy: number;
+  life: number;
+  color: string;
+}
+
+export interface GameState {
+  score: number;
+  lives: number;
+  level: number;
+  isPlaying: boolean;
+  isGameOver: boolean;
+  highScore: number;
 }
 
 // --- PLUGIN SYSTEM TYPES ---

@@ -1,9 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { Settings, X, Terminal, Circle, Plus, Trash2, Power, AlertCircle, Upload, Package, FileCode, RefreshCw, Download, HardDrive, Check, Ban, Loader2, Play, Eye, Skull } from 'lucide-react';
+import { Settings, X, Terminal, Trash2, Power, Upload, Package, Check, Ban, Loader2, HardDrive, RefreshCw } from 'lucide-react';
 import { GlobalConfig, PluginConfig, PluginManifest } from '../types';
 import { FULL_ICON_MAP, DEFAULT_PROJECT_KEYS, DEFAULT_STATUS_KEYS } from './ProjectList';
-import { getJiraPlugin } from '../data/defaultPlugins';
 import JSZip from 'jszip';
 
 interface SettingsModalProps {
@@ -16,182 +15,76 @@ interface SettingsModalProps {
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, config, onUpdateConfig }) => {
   const [activeTab, setActiveTab] = useState<'project' | 'status' | 'plugins'>('project');
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  
-  // Simulation State
-  const [shutdownState, setShutdownState] = useState<'none' | 'stopping' | 'stopped' | 'booting'>('none');
-  const [targetPluginId, setTargetPluginId] = useState<string | null>(null);
+  const [processingStep, setProcessingStep] = useState<string | null>(null);
+  const [installSuccess, setInstallSuccess] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  // State for blocked plugins
-  const [blockedPlugins, setBlockedPlugins] = useState<string[]>(() => 
-    JSON.parse(localStorage.getItem('galaga_blocked_plugins') || '[]')
-  );
-
-  // State for destroyed plugins (permanently hidden)
-  const [destroyedPlugins, setDestroyedPlugins] = useState<string[]>(() => 
-    JSON.parse(localStorage.getItem('galaga_destroyed_plugins') || '[]')
-  );
-
-  // State for plugins actually available on disk (verified by backend)
-  const [diskPlugins, setDiskPlugins] = useState<PluginConfig[]>([]);
-
-  // Fetch disk state when opening plugins tab
-  useEffect(() => {
-    if (isOpen && activeTab === 'plugins') {
-        fetchPlugins();
-    }
-  }, [isOpen, activeTab]);
-
-  const fetchPlugins = () => {
-     fetch(`/__system/list-plugins?t=${Date.now()}`)
-        .then(res => {
-            if (!res.ok) throw new Error("System endpoint missing");
-            return res.json();
-        })
-        .then((serverPlugins: PluginConfig[]) => {
-            const defaultPlugins = [getJiraPlugin()];
-            const combinedMap = new Map<string, PluginConfig>();
-            
-            // Filter out destroyed plugins from the repository fetch
-            const currentDestroyed = JSON.parse(localStorage.getItem('galaga_destroyed_plugins') || '[]');
-            
-            defaultPlugins.forEach(p => {
-              if (!currentDestroyed.includes(p.id)) {
-                combinedMap.set(p.id, p);
-              }
-            });
-
-            serverPlugins.forEach(p => {
-              if (!currentDestroyed.includes(p.id)) {
-                combinedMap.set(p.id, p);
-              }
-            });
-            
-            setDiskPlugins(Array.from(combinedMap.values()));
-        })
-        .catch(err => {
-            console.warn("Plugin system offline, falling back to defaults.", err);
-            const currentDestroyed = JSON.parse(localStorage.getItem('galaga_destroyed_plugins') || '[]');
-            const defaults = [getJiraPlugin()].filter(p => !currentDestroyed.includes(p.id));
-            setDiskPlugins(defaults);
-        });
-  };
-
-  if (!isOpen && shutdownState === 'none') return null;
-
-  const handleAddIcon = (type: 'project' | 'status', key: string) => {
-    if (type === 'project') {
-      if (!config.projectIcons.includes(key)) {
-        onUpdateConfig({ ...config, projectIcons: [...config.projectIcons, key] });
-      }
-    } else {
-      if (!config.statusIcons.includes(key)) {
-        onUpdateConfig({ ...config, statusIcons: [...config.statusIcons, key] });
-      }
-    }
-  };
-
-  const handleRemoveIcon = (type: 'project' | 'status', key: string) => {
-    if (type === 'project') {
-      onUpdateConfig({ ...config, projectIcons: config.projectIcons.filter(k => k !== key) });
-    } else {
-      onUpdateConfig({ ...config, statusIcons: config.statusIcons.filter(k => k !== key) });
-    }
-  };
+  if (!isOpen) return null;
 
   const handleTogglePlugin = (id: string) => {
     const updatedPlugins = (config.plugins || []).map(p => 
       p.id === id ? { ...p, enabled: !p.enabled } : p
     );
     onUpdateConfig({ ...config, plugins: updatedPlugins });
+    setTimeout(() => window.location.reload(), 150);
   };
 
-  const handleDeletePlugin = (id: string) => {
-    if (confirm("Uninstall this plugin? The system will reload to clean up resources.")) {
-        const currentConfigStr = localStorage.getItem('galaga_global_config_v1');
-        if (currentConfigStr) {
-            const currentConfig = JSON.parse(currentConfigStr) as GlobalConfig;
-            const updatedPlugins = (currentConfig.plugins || []).filter(p => p.id !== id);
-            const newConfig = { ...currentConfig, plugins: updatedPlugins };
-            localStorage.setItem('galaga_global_config_v1', JSON.stringify(newConfig));
-        }
-        window.location.reload();
-    }
-  };
-
-  const handleSoftBlockPlugin = (id: string) => {
-    const isInstalled = (config.plugins || []).some(p => p.id === id);
-    if (isInstalled) {
-        alert("Cannot delete an installed plugin. Please uninstall it from the 'Installed Plugins' list first.");
-        return;
-    }
-
-    if (confirm("Remove this plugin from the Repository? It will be moved to the 'Blocked / Deleted' list below.")) {
-        const newBlocked = [...blockedPlugins];
-        if (!newBlocked.includes(id)) {
-            newBlocked.push(id);
-            localStorage.setItem('galaga_blocked_plugins', JSON.stringify(newBlocked));
-            setBlockedPlugins(newBlocked);
-        }
-    }
-  };
-
-  const handleHardDeletePlugin = async (id: string) => {
-    if (confirm("WARNING: This will initiate a SYSTEM HALT to permanently scrub this plugin from the disk. This action cannot be undone. Proceed?")) {
-        setTargetPluginId(id);
-        setShutdownState('stopping');
+  const handleSyncWithDisk = async () => {
+    setIsSyncing(true);
+    try {
+      const response = await fetch('/__system/list-plugins');
+      if (response.ok) {
+        const diskPlugins: PluginConfig[] = await response.json();
+        const updatedPlugins = [...(config.plugins || [])];
         
-        try {
-            const newBlocked = blockedPlugins.filter((bid: string) => bid !== id);
-            setBlockedPlugins(newBlocked);
-            localStorage.setItem('galaga_blocked_plugins', JSON.stringify(newBlocked));
+        diskPlugins.forEach(dp => {
+          const idx = updatedPlugins.findIndex(p => p.id === dp.id);
+          if (idx === -1) {
+            updatedPlugins.push({ ...dp, enabled: true });
+          } else {
+            updatedPlugins[idx] = { ...dp, enabled: updatedPlugins[idx].enabled };
+          }
+        });
 
-            const newDestroyed = [...destroyedPlugins, id];
-            setDestroyedPlugins(newDestroyed);
-            localStorage.setItem('galaga_destroyed_plugins', JSON.stringify(newDestroyed));
-
-            const currentConfigStr = localStorage.getItem('galaga_global_config_v1');
-            if (currentConfigStr) {
-                const currentConfig = JSON.parse(currentConfigStr) as GlobalConfig;
-                const updatedPlugins = (currentConfig.plugins || []).filter(p => p.id !== id);
-                localStorage.setItem('galaga_global_config_v1', JSON.stringify({ ...currentConfig, plugins: updatedPlugins }));
-            }
-            
-            const syncedPlugins = (config.plugins || []).filter(p => p.id !== id);
-            onUpdateConfig({ ...config, plugins: syncedPlugins });
-
-        } catch (e) {
-            console.error("Storage cleanup error:", e);
-        }
-
-        try {
-            await fetch(`/__system/destroy-plugin?id=${encodeURIComponent(id)}`, { method: 'POST' });
-        } catch (e) {
-            console.log("Destruction request acknowledged (server halting).");
-        }
-            
-        setTimeout(() => {
-            setShutdownState('stopped');
-            setTimeout(() => {
-                 window.location.reload(); 
-            }, 3000);
-        }, 2000);
+        onUpdateConfig({ ...config, plugins: updatedPlugins });
+        setInstallSuccess("Sync with Disk complete.");
+        setTimeout(() => setInstallSuccess(null), 3000);
+      }
+    } catch (e) {
+      setUploadError("Disk Sync failed. Are you running the local dev server?");
+    } finally {
+      setIsSyncing(false);
     }
   };
 
-  const handleRestorePlugin = (id: string) => {
-      const newBlocked = blockedPlugins.filter((bid: string) => bid !== id);
-      setBlockedPlugins(newBlocked);
-      localStorage.setItem('galaga_blocked_plugins', JSON.stringify(newBlocked));
-  };
+  const handleUninstallPlugin = async (id: string) => {
+    if (confirm("DANGER: This will permanently delete this module's code from the physical /plugins directory and the system database. Proceed?")) {
+      setProcessingStep("Purging Module...");
+      try {
+        // 1. Attempt physical deletion from disk via system bridge
+        const response = await fetch('/__system/delete-plugin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+        });
 
-  const handleInstallFromRepo = (plugin: PluginConfig) => {
-    const newPlugin = { ...plugin, enabled: true };
-    const otherPlugins = (config.plugins || []).filter(p => p.id !== plugin.id);
-    onUpdateConfig({
-        ...config,
-        plugins: [...otherPlugins, newPlugin]
-    });
+        if (!response.ok) {
+            console.warn("[PLUGIN_SYSTEM] Physical deletion failed or bridge unavailable.");
+        }
+
+        // 2. Remove from local configuration state
+        const updatedPlugins = (config.plugins || []).filter(p => p.id !== id);
+        onUpdateConfig({ ...config, plugins: updatedPlugins });
+        
+        setInstallSuccess("Module successfully purged.");
+        setTimeout(() => window.location.reload(), 800);
+      } catch (err) {
+        console.error("[PLUGIN_SYSTEM] Critical Uninstallation Failure:", err);
+        setUploadError("Purge failed. Manual file removal required in /plugins/.");
+      } finally {
+        setProcessingStep(null);
+      }
+    }
   };
 
   const handleZipUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -199,125 +92,221 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, config, 
     if (!file) return;
 
     setUploadError(null);
-    setIsProcessing(true);
+    setInstallSuccess(null);
+    setProcessingStep("Reading Archive...");
 
     try {
         const zip = new JSZip();
-        const content = await zip.loadAsync(file);
+        const zipContent = await zip.loadAsync(file);
 
-        // 1. Find manifest.json (could be nested)
-        let manifestEntry: JSZip.JSZipObject | null = null;
-        zip.forEach((relativePath, zipFile) => {
-            if (relativePath.endsWith('manifest.json')) {
-                manifestEntry = zipFile;
-            }
-        });
+        let manifestEntry = Object.values(zipContent.files).find(f => f.name.endsWith('manifest.json') && !f.dir);
+        if (!manifestEntry) throw new Error("Manifest Error: 'manifest.json' not found. Ensure your zip contains the build files.");
 
-        if (!manifestEntry) throw new Error("Invalid Plugin: Missing 'manifest.json' anywhere in the package.");
-
-        // @ts-ignore - manifestEntry is definitely not null here
+        setProcessingStep("Decoding Manifest...");
         const manifestStr = await manifestEntry.async("string");
-        const manifest = JSON.parse(manifestStr);
-        // @ts-ignore
+        const manifest = JSON.parse(manifestStr) as PluginManifest;
+        
         const manifestPath = manifestEntry.name;
-        const basePath = manifestPath.substring(0, manifestPath.lastIndexOf('/') + 1);
+        const basePath = manifestPath.substring(0, manifestPath.lastIndexOf('manifest.json'));
 
-        if (!manifest.id || !manifest.name || !manifest.main || !manifest.globalVar) {
-            throw new Error("Invalid Manifest: Missing required fields (id, name, main, globalVar).");
+        if (!manifest.id || !manifest.main || !manifest.globalVar) {
+            throw new Error("Validation Error: Manifest is missing 'id', 'main', or 'globalVar'.");
         }
 
+        setProcessingStep("Packaging Logic...");
         const filesPayload: Record<string, string> = {};
         
-        // 2. Extract Main JS relative to manifest
-        const mainEntry = zip.file(basePath + manifest.main);
-        if (!mainEntry) throw new Error(`Entry file '${manifest.main}' not found at path: ${basePath}`);
+        const mainPath = basePath + manifest.main;
+        const mainFile = zipContent.file(mainPath);
+        if (!mainFile) throw new Error(`Asset Missing: '${manifest.main}' not found at relative path: ${mainPath}`);
         
-        filesPayload[manifest.main] = await mainEntry.async("string");
+        const mainContent = await mainFile.async("string");
+        filesPayload[manifest.main] = `data:text/javascript;base64,${btoa(unescape(encodeURIComponent(mainContent)))}`;
 
-        // 3. Extract Optional CSS relative to manifest
         if (manifest.style) {
-            const styleEntry = zip.file(basePath + manifest.style);
-            if (styleEntry) {
-                filesPayload[manifest.style] = await styleEntry.async("string");
+            const stylePath = basePath + manifest.style;
+            const styleFile = zipContent.file(stylePath);
+            if (styleFile) {
+                const styleContent = await styleFile.async("string");
+                filesPayload[manifest.style] = `data:text/css;base64,${btoa(unescape(encodeURIComponent(styleContent)))}`;
             }
         }
 
-        // 4. Send to Backend
-        const response = await fetch('/__system/upload-plugin', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                id: manifest.id,
-                manifest: manifest,
-                files: filesPayload
-            })
+        setProcessingStep("Syncing to SQLite...");
+        
+        const newPlugin: PluginConfig = {
+            id: manifest.id,
+            enabled: true,
+            manifest: manifest,
+            files: filesPayload
+        };
+
+        const otherPlugins = (config.plugins || []).filter(p => p.id !== manifest.id);
+        onUpdateConfig({
+            ...config,
+            plugins: [...otherPlugins, newPlugin]
         });
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || "Backend upload failed");
-        }
-
-        const newBlocked = blockedPlugins.filter(id => id !== manifest.id);
-        setBlockedPlugins(newBlocked);
-        localStorage.setItem('galaga_blocked_plugins', JSON.stringify(newBlocked));
-
-        const newDestroyed = destroyedPlugins.filter(id => id !== manifest.id);
-        setDestroyedPlugins(newDestroyed);
-        localStorage.setItem('galaga_destroyed_plugins', JSON.stringify(newDestroyed));
-
-        fetchPlugins();
+        setInstallSuccess(`${manifest.name} v${manifest.version} Installed.`);
+        setProcessingStep(null);
+        setTimeout(() => window.location.reload(), 800);
 
     } catch (err: any) {
-        console.error("Plugin Processing Error:", err);
-        setUploadError(err.message || "Failed to process plugin file.");
+        console.error("[PLUGIN_SYSTEM] Installation Failed:", err);
+        setUploadError(err.message || "Failed to process zip archive.");
+        setProcessingStep(null);
     } finally {
-        setIsProcessing(false);
         e.target.value = '';
     }
   };
 
+  const renderPlugins = () => {
+    return (
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
+            <div className="p-8 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-800 hover:border-cyan-500 transition-all text-center relative group">
+                {processingStep ? (
+                    <div className="flex flex-col items-center py-4">
+                        <Loader2 size={32} className="animate-spin text-cyan-500 mb-3" />
+                        <span className="text-xs font-bold uppercase text-slate-500 tracking-widest">{processingStep}</span>
+                    </div>
+                ) : (
+                    <>
+                        <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-200 dark:border-slate-700 shadow-sm group-hover:scale-110 transition-transform">
+                            <Upload size={28} className="text-slate-400 group-hover:text-cyan-500" />
+                        </div>
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-1">Upload Plugin Archive</h3>
+                        <p className="text-xs text-slate-500 mb-6">Select a <code>.zip</code> file containing your UMD build.</p>
+                        
+                        <div className="flex justify-center relative">
+                            <input 
+                                type="file" 
+                                accept=".zip" 
+                                onChange={handleZipUpload} 
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                            />
+                            <button className="px-8 py-3 bg-slate-900 dark:bg-cyan-600 text-white rounded-xl text-xs font-bold uppercase shadow-xl hover:bg-slate-800 dark:hover:bg-cyan-500 transition-all pointer-events-none flex items-center gap-2">
+                                <Package size={16} /> Choose File
+                            </button>
+                        </div>
+                    </>
+                )}
+
+                {uploadError && (
+                    <div className="mt-6 p-4 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 text-xs rounded-xl border border-rose-200 dark:border-rose-900 font-mono text-left animate-in shake-2">
+                        <div className="flex items-center gap-2 mb-1 font-bold">
+                            <Ban size={14} /> INSTALLATION_HALTED
+                        </div>
+                        {uploadError}
+                    </div>
+                )}
+
+                {installSuccess && (
+                    <div className="mt-6 p-4 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 text-xs rounded-xl border border-emerald-200 dark:border-emerald-900 font-bold uppercase flex items-center justify-center gap-2 animate-in zoom-in-95">
+                        <Check size={18} /> {installSuccess}
+                    </div>
+                )}
+            </div>
+
+            <div className="space-y-4">
+                <div className="flex items-center justify-between px-2">
+                    <h4 className="text-[10px] font-bold uppercase text-slate-500 tracking-[0.2em] flex items-center gap-2">
+                        <HardDrive size={12} className="text-cyan-500" /> Persistent Modules
+                    </h4>
+                    <button 
+                      onClick={handleSyncWithDisk}
+                      disabled={isSyncing}
+                      className="text-[9px] font-bold uppercase text-slate-400 hover:text-cyan-600 flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                    >
+                      {isSyncing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                      Sync with Disk
+                    </button>
+                </div>
+                
+                {(config.plugins || []).length === 0 ? (
+                    <div className="py-12 text-center text-slate-400 border border-slate-100 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-950/50">
+                        <p className="text-xs italic">No external modules found in Local Storage.</p>
+                    </div>
+                ) : (
+                    <div className="grid gap-3">
+                        {(config.plugins || []).map(plugin => (
+                            <div key={plugin.id} className="flex items-center justify-between p-4 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700 transition-all group">
+                                <div className="flex items-center gap-4">
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${plugin.enabled ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600' : 'bg-slate-100 dark:bg-slate-900 text-slate-400'}`}>
+                                        <Power size={20} />
+                                    </div>
+                                    <div>
+                                        <h4 className={`text-sm font-bold ${plugin.enabled ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`}>
+                                            {plugin.manifest.name}
+                                            <span className="ml-2 text-[9px] text-slate-400 font-normal">v{plugin.manifest.version}</span>
+                                        </h4>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className="text-[9px] font-mono text-slate-400 bg-slate-50 dark:bg-slate-900 px-1.5 py-0.5 rounded border border-slate-100 dark:border-slate-800">{plugin.id}</span>
+                                            {plugin.manifest.type === 'theme' && (
+                                                <span className="text-[9px] font-bold text-indigo-500 uppercase tracking-tighter">Theme Engine</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <button 
+                                        onClick={() => handleTogglePlugin(plugin.id)}
+                                        className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${plugin.enabled ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                                    >
+                                        {plugin.enabled ? 'Active' : 'Disabled'}
+                                    </button>
+                                    <button 
+                                        onClick={() => handleUninstallPlugin(plugin.id)}
+                                        className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                        title="Purge from Disk & Database"
+                                    >
+                                        <Trash2 size={18} />
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+  };
+
   const renderIconGrid = (type: 'project' | 'status') => {
     const activeKeys = type === 'project' ? config.projectIcons : config.statusIcons;
-    const defaultKeys = type === 'project' ? DEFAULT_PROJECT_KEYS : DEFAULT_STATUS_KEYS;
     const availableKeys = Object.keys(FULL_ICON_MAP).filter(k => !activeKeys.includes(k));
 
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
         <div>
-          <h3 className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-2">
-            Active Icons <span className="text-[10px] bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-600 dark:text-slate-400">{activeKeys.length}</span>
+          <h3 className="text-[10px] font-bold uppercase text-slate-500 mb-3 flex items-center gap-2 tracking-[0.2em]">
+            Active Icons <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[9px] font-mono">{activeKeys.length}</span>
           </h3>
-          <div className="grid grid-cols-6 sm:grid-cols-8 gap-2 bg-slate-100 dark:bg-slate-900/50 p-4 rounded-lg border border-slate-200 dark:border-slate-800">
+          <div className="grid grid-cols-6 sm:grid-cols-8 gap-3 p-5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-inner">
             {activeKeys.map(key => {
               const Icon = FULL_ICON_MAP[key] || Terminal;
-              const isDefault = defaultKeys.includes(key);
               return (
-                <div key={key} className="group relative flex items-center justify-center p-2 bg-white dark:bg-slate-800 rounded border border-slate-300 dark:border-slate-700 shadow-sm">
-                  <Icon size={20} className="text-slate-600 dark:text-slate-300" />
-                  {!isDefault && (
-                    <button
-                      onClick={() => handleRemoveIcon(type, key)}
-                      className="absolute -top-1 -right-1 bg-rose-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                    >
-                      <X size={10} />
-                    </button>
-                  )}
+                <div key={key} className="flex items-center justify-center p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 shadow-sm transition-transform hover:scale-110">
+                  <Icon size={20} />
                 </div>
               );
             })}
           </div>
         </div>
         <div>
-          <h3 className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-3">Available Library</h3>
-          <div className="grid grid-cols-6 sm:grid-cols-8 gap-2 max-h-[200px] overflow-y-auto custom-scrollbar p-1">
+          <h3 className="text-[10px] font-bold uppercase text-slate-500 mb-3 tracking-[0.2em]">Library</h3>
+          <div className="grid grid-cols-6 sm:grid-cols-8 gap-3 max-h-[260px] overflow-y-auto custom-scrollbar p-1">
             {availableKeys.map(key => {
               const Icon = FULL_ICON_MAP[key];
               return (
                 <button
                   key={key}
-                  onClick={() => handleAddIcon(type, key)}
-                  className="flex items-center justify-center p-2 bg-white dark:bg-slate-950 rounded border border-slate-200 dark:border-slate-800 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 hover:border-cyan-500 text-slate-500 hover:text-cyan-600 dark:hover:text-cyan-400 transition-all"
+                  onClick={() => {
+                      const newConfig = { ...config };
+                      if (type === 'project') newConfig.projectIcons = [...config.projectIcons, key];
+                      else newConfig.statusIcons = [...config.statusIcons, key];
+                      onUpdateConfig(newConfig);
+                  }}
+                  className="flex items-center justify-center p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-cyan-500 text-slate-400 hover:text-cyan-500 rounded-xl transition-all shadow-sm active:scale-95"
                 >
                   <Icon size={20} />
                 </button>
@@ -329,266 +318,46 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, config, 
     );
   };
 
-  const renderPlugins = () => {
-    const repoPlugins = diskPlugins.filter(p => !blockedPlugins.includes(p.id) && !destroyedPlugins.includes(p.id));
-
-    return (
-        <div className="space-y-8">
-            <div className="bg-indigo-50 dark:bg-indigo-950/20 p-4 rounded-lg border border-indigo-100 dark:border-indigo-900/50 text-xs text-indigo-800 dark:text-indigo-300">
-                <div className="flex items-start gap-2">
-                    <Package size={16} className="mt-0.5 flex-shrink-0" />
-                    <div>
-                        <strong>Plugin Manager:</strong> 
-                        <br/>
-                        Upload a <code>.zip</code> file containing your built UMD assets. The manifest and entry file will be automatically identified.
-                    </div>
-                </div>
-            </div>
-
-            <div className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-cyan-500 dark:hover:border-cyan-500 transition-colors text-center relative">
-                {isProcessing ? (
-                     <div className="flex flex-col items-center justify-center py-4">
-                        <div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin mb-2"></div>
-                        <span className="text-xs font-bold uppercase text-slate-500">Extracting & Identifying...</span>
-                     </div>
-                ) : (
-                    <>
-                        <Upload size={32} className="mx-auto text-slate-400 mb-2" />
-                        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Upload Plugin Zip</h3>
-                        <p className="text-xs text-slate-500 mb-4">Files inside the zip should be flat (no subfolders preferred).</p>
-                        
-                        <div className="flex justify-center gap-3 relative z-20">
-                            <input 
-                                type="file" 
-                                accept=".zip" 
-                                onChange={handleZipUpload} 
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                            />
-                            <button className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-xs font-bold uppercase shadow-sm pointer-events-none">
-                                Select File
-                            </button>
-                        </div>
-                    </>
-                )}
-                {uploadError && (
-                    <div className="mt-4 p-3 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 text-xs rounded border border-rose-200 dark:border-rose-900 font-mono text-left">
-                        <strong>Upload Error:</strong><br/>
-                        {uploadError}
-                    </div>
-                )}
-            </div>
-
-            <div className="space-y-2">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                     <span className="text-xs font-bold uppercase text-slate-500 flex items-center gap-2">
-                        <Terminal size={14} /> Installed Modules
-                     </span>
-                </div>
-                {(config.plugins || []).length === 0 && (
-                    <p className="text-center text-xs text-slate-400 italic py-4">No active plugins.</p>
-                )}
-                {(config.plugins || []).map(plugin => {
-                    const isTheme = plugin.manifest.type === 'theme';
-                    return (
-                        <div key={plugin.id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm">
-                            <div className="flex items-center gap-3">
-                                <div className={`p-2 rounded-full ${plugin.enabled ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-                                    <Power size={14} />
-                                </div>
-                                <div>
-                                    <h4 className={`text-sm font-bold ${plugin.enabled ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`}>
-                                        {plugin.manifest?.name || plugin.id} 
-                                        <span className={`ml-2 text-[9px] uppercase px-1.5 py-0.5 rounded border ${isTheme ? 'bg-fuchsia-50 text-fuchsia-600 border-fuchsia-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>
-                                            {isTheme ? 'Theme' : 'Tool'}
-                                        </span>
-                                    </h4>
-                                    <div className="flex items-center gap-2 text-[10px] text-slate-500">
-                                        <code>{plugin.manifest?.main}</code>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <button 
-                                    onClick={() => handleTogglePlugin(plugin.id)}
-                                    className={`px-3 py-1.5 rounded text-xs font-bold uppercase transition-colors ${plugin.enabled ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-                                >
-                                    {plugin.enabled ? 'Active' : 'Disabled'}
-                                </button>
-                                <button 
-                                    onClick={() => handleDeletePlugin(plugin.id)}
-                                    disabled={plugin.enabled}
-                                    className={`p-2 rounded ${plugin.enabled ? 'text-slate-300 cursor-not-allowed' : 'text-slate-400 hover:text-rose-500'}`}
-                                >
-                                    <Trash2 size={16} />
-                                </button>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-
-            <div className="space-y-2 pt-4">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                     <span className="text-xs font-bold uppercase text-slate-500 flex items-center gap-2">
-                        <HardDrive size={14} /> Local Repository
-                     </span>
-                </div>
-                {repoPlugins.length === 0 ? (
-                    <p className="text-center text-xs text-slate-400 italic py-4">Repository is empty.</p>
-                ) : (
-                    repoPlugins.map(repoPlugin => {
-                        const isInstalled = (config.plugins || []).some(p => p.id === repoPlugin.id);
-                        return (
-                            <div key={repoPlugin.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-800 rounded-lg">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-500">
-                                        <Package size={14} />
-                                    </div>
-                                    <div>
-                                        <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">{repoPlugin.manifest.name}</h4>
-                                        <p className="text-xs text-slate-500">{repoPlugin.manifest.description}</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    {isInstalled ? (
-                                        <span className="flex items-center gap-1 text-[10px] font-bold uppercase text-emerald-600 px-3 py-1.5 bg-emerald-50 rounded">
-                                            <Check size={12} /> Installed
-                                        </span>
-                                    ) : (
-                                        <button 
-                                            onClick={() => handleInstallFromRepo(repoPlugin)}
-                                            className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-xs font-bold uppercase transition-colors"
-                                        >
-                                            Install
-                                        </button>
-                                    )}
-                                    <button 
-                                        onClick={() => handleSoftBlockPlugin(repoPlugin.id)}
-                                        disabled={isInstalled}
-                                        className={`p-2 rounded ${isInstalled ? 'text-slate-300 cursor-not-allowed' : 'text-slate-400 hover:text-rose-600'}`}
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
-                                </div>
-                            </div>
-                        );
-                    })
-                )}
-            </div>
-
-            {blockedPlugins.length > 0 && (
-                <div className="space-y-2 pt-8 border-t border-slate-200 dark:border-slate-800">
-                    <div className="flex items-center justify-between pb-2">
-                        <span className="text-xs font-bold uppercase text-slate-400 flex items-center gap-2">
-                            <Ban size={14} /> Trash / Blocked
-                        </span>
-                    </div>
-                    {blockedPlugins.map(bid => {
-                        const knownPlugin = diskPlugins.find(p => p.id === bid) || [getJiraPlugin()].find(p => p.id === bid);
-                        return (
-                            <div key={bid} className="flex items-center justify-between p-3 bg-rose-50 dark:bg-rose-950/10 border border-rose-100 dark:border-rose-900/30 rounded-lg">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-full bg-rose-100 dark:bg-rose-900/20 text-rose-500">
-                                        <Ban size={14} />
-                                    </div>
-                                    <div>
-                                        <h4 className="text-sm font-bold text-slate-600 dark:text-slate-400">{knownPlugin ? knownPlugin.manifest.name : bid}</h4>
-                                        <p className="text-[10px] text-slate-400">Permanently hidden from view.</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <button 
-                                        onClick={() => handleRestorePlugin(bid)}
-                                        className="flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-slate-800 text-slate-500 hover:text-emerald-600 border border-slate-200 dark:border-slate-700 rounded text-xs font-bold uppercase transition-colors"
-                                    >
-                                        <Eye size={12} /> Restore
-                                    </button>
-                                    <button 
-                                        onClick={() => handleHardDeletePlugin(bid)}
-                                        className="flex items-center gap-1 px-3 py-1.5 bg-white dark:bg-slate-800 text-rose-500 hover:text-rose-700 border border-slate-200 dark:border-slate-700 rounded text-xs font-bold uppercase transition-colors"
-                                    >
-                                        <Skull size={12} /> Scrub Disk
-                                    </button>
-                                </div>
-                            </div>
-                        )
-                    })}
-                </div>
-            )}
-        </div>
-    )
-  }
-
   return (
-    <>
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 dark:bg-black/70 backdrop-blur-sm animate-in fade-in" role="dialog">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 flex-shrink-0">
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2 font-mono">
-                <Settings size={18} className="text-cyan-600 dark:text-cyan-500" />
-                SYSTEM CONFIGURATION
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md" role="dialog">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-[2rem] shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col scale-100 animate-in zoom-in-95 duration-200">
+        <div className="p-8 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950/50">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2 font-mono tracking-tight">
+                <Settings size={22} className="text-cyan-600 dark:text-cyan-500" />
+                SYSTEM_CONFIGURATION
             </h2>
-            <button onClick={onClose} className="text-slate-500 hover:text-slate-900 dark:hover:text-white">
-                <X size={20} />
-            </button>
-            </div>
-
-            <div className="flex border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
-            <button 
-                onClick={() => setActiveTab('project')}
-                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider ${activeTab === 'project' ? 'bg-slate-100 dark:bg-slate-800 text-cyan-700 border-b-2 border-cyan-500' : 'text-slate-500'}`}
-            >
-                Project Icons
-            </button>
-            <button 
-                onClick={() => setActiveTab('status')}
-                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider ${activeTab === 'status' ? 'bg-slate-100 dark:bg-slate-800 text-cyan-700 border-b-2 border-cyan-500' : 'text-slate-500'}`}
-            >
-                Status Icons
-            </button>
-            <button 
-                onClick={() => setActiveTab('plugins')}
-                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider ${activeTab === 'plugins' ? 'bg-slate-100 dark:bg-slate-800 text-fuchsia-700 border-b-2 border-fuchsia-500' : 'text-slate-500'}`}
-            >
-                Plugins
-            </button>
-            </div>
-
-            <div className="p-6 bg-white dark:bg-slate-900 overflow-y-auto custom-scrollbar flex-1">
-            {activeTab === 'plugins' ? renderPlugins() : renderIconGrid(activeTab)}
-            </div>
-
-            <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/30 text-right flex-shrink-0">
-            <button onClick={onClose} className="px-4 py-2 bg-slate-200 dark:bg-slate-800 rounded text-xs font-bold uppercase">
-                Done
-            </button>
-            </div>
-        </div>
+            <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">Core Environment Manager</p>
+          </div>
+          <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full">
+            <X size={20} />
+          </button>
         </div>
 
-        {shutdownState !== 'none' && (
-            <div className="fixed inset-0 z-[9999] bg-black text-white font-mono flex flex-col items-center justify-center p-8 cursor-wait">
-                {shutdownState === 'stopping' && (
-                    <>
-                        <Loader2 size={64} className="text-red-600 animate-spin mb-8" />
-                        <h1 className="text-4xl font-bold mb-4 text-red-600 tracking-widest animate-pulse">SYSTEM HALT</h1>
-                        <div className="text-left space-y-2 text-slate-400 font-mono text-sm w-96">
-                            <p className="animate-pulse">&gt; [SYSTEM] Initializing Wipe Protocol...</p>
-                            <p>&gt; [SERVER] Terminating file streams...</p>
-                            <p className="text-red-500">&gt; [DISK] Destroying: {targetPluginId}</p>
-                        </div>
-                    </>
-                )}
-                {shutdownState === 'stopped' && (
-                     <>
-                        <div className="w-16 h-16 rounded-full border-4 border-slate-800 mb-8" />
-                        <h1 className="text-4xl font-bold mb-4 text-slate-700 tracking-widest">SERVER STOPPED</h1>
-                        <p className="text-slate-600 font-mono text-sm">&gt; Rebooting to synchronize disk state...</p>
-                    </>
-                )}
-            </div>
-        )}
-    </>
+        <div className="flex border-b border-slate-100 dark:border-slate-800 px-4 pt-4 bg-slate-50 dark:bg-slate-950/50">
+          {['project', 'status', 'plugins'].map((tab) => (
+            <button 
+              key={tab}
+              onClick={() => setActiveTab(tab as any)}
+              className={`px-8 py-4 text-[10px] font-bold uppercase tracking-[0.2em] transition-all border-b-2 rounded-t-xl ${activeTab === tab ? 'bg-white dark:bg-slate-900 text-cyan-600 border-cyan-500 shadow-sm' : 'text-slate-400 border-transparent hover:text-slate-600 dark:hover:text-slate-200'}`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        <div className="p-8 overflow-y-auto custom-scrollbar flex-1 bg-white dark:bg-slate-900">
+          {activeTab === 'plugins' ? renderPlugins() : renderIconGrid(activeTab)}
+        </div>
+
+        <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/30 flex justify-between items-center px-8">
+          <p className="text-[10px] text-slate-400 font-mono">DB_VERSION: v1.1.0_LSC</p>
+          <button onClick={onClose} className="px-8 py-3 bg-slate-800 dark:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-cyan-600 transition-all shadow-lg active:scale-95">
+            Commit Changes
+          </button>
+        </div>
+      </div>
+    </div>
   );
 };
 

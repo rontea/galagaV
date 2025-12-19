@@ -1,55 +1,38 @@
+
 import React, { useState, useEffect } from 'react';
-import { Project, GlobalConfig } from './types';
+import { Project, GlobalConfig, PluginConfig } from './types';
 import ProjectList, { DEFAULT_PROJECT_KEYS, DEFAULT_STATUS_KEYS } from './components/ProjectList';
 import ProjectDetail from './components/ProjectDetail';
 import ConfirmModal from './components/ConfirmModal';
 import PluginBootstrap from './components/PluginBootstrap';
-import { getJiraPlugin } from './data/defaultPlugins';
+import { getProfessionalPlugin } from './data/defaultPlugins';
+import { initDB, getProjectsFromDB, saveProjectsToDB, getConfigFromDB, saveConfigToDB, migrateFromLocalStorage } from './lib/sqlite';
+import { Loader2 } from 'lucide-react';
 
-// --- Storage Keys ---
-const STORAGE_KEY_V1 = 'galaga_project_dashboard_v1';
-const STORAGE_KEY_V2 = 'galaga_projects_v2';
-const STORAGE_KEY_GLOBAL_CONFIG = 'galaga_global_config_v1';
 const STORAGE_KEY_INSTALLED_DEFAULTS = 'galaga_installed_default_plugins';
 const STORAGE_KEY_BLOCKED_PLUGINS = 'galaga_blocked_plugins';
 
 const DEFAULT_PROJECT: Project = {
   id: 'proj_galagav_default',
-  name: 'GalagaV',
-  description: 'A classic arcade space shooter clone featuring high scores, custom pilot profiles, and AI-powered callsign generation.',
-  systemPrompt: 'ROLE: Senior Game Developer & UI Specialist.\nGOAL: GalagaV - Classic arcade shooter with Firestore High Scores and Custom Pilot Profiles.',
-  icon: 'Gamepad2',
+  name: 'GalagaV Dashboard',
+  description: 'A professional workspace for managing technical protocols and development roadmaps.',
+  systemPrompt: 'ROLE: Senior Product Manager & Technical Architect.\nGOAL: Organize and track complex system requirements and deployment cycles.',
+  icon: 'Layout',
   steps: [
     {
       id: 'step_1',
-      title: 'Initialize Project Structure',
+      title: 'Initialize Dashboard',
       category: 'frontend',
       status: 'completed',
-      content: 'Setup React, Tailwind CSS, and basic file architecture including types and firebase config.',
+      content: 'Core architecture and state management initialized.',
       createdAt: Date.now()
     },
     {
       id: 'step_2',
-      title: 'Game Loop Engine',
-      category: 'frontend',
+      title: 'Plugin System Integration',
+      category: 'backend',
       status: 'in-progress',
-      content: 'Implement useGameLoop hook to handle physics, collision detection, and entity state management.',
-      createdAt: Date.now()
-    },
-    {
-      id: 'step_3',
-      title: 'Firestore High Scores',
-      category: 'backend',
-      status: 'pending',
-      content: 'Integrate Firebase Firestore to save and retrieve high scores and pilot profiles.',
-      createdAt: Date.now()
-    },
-    {
-      id: 'step_4',
-      title: 'AI Callsign Generator',
-      category: 'backend',
-      status: 'pending',
-      content: 'Connect Google Gemini API to generate cool sci-fi callsigns based on user pilot names.',
+      content: 'Expanding virtual file system capabilities for external module loading.',
       createdAt: Date.now()
     }
   ]
@@ -68,143 +51,107 @@ const App: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [initMessage, setInitMessage] = useState('Initializing Core Database...');
   
-  // Global Configuration
   const [globalConfig, setGlobalConfig] = useState<GlobalConfig>({
     projectIcons: DEFAULT_PROJECT_KEYS,
     statusIcons: DEFAULT_STATUS_KEYS,
     plugins: [],
-    theme: 'dark' // Default to dark
+    theme: 'dark'
   });
 
-  // Confirmation Modal State
   const [confirmModal, setConfirmModal] = useState<ConfirmState | null>(null);
 
-  // Initialization & Migration
-  useEffect(() => {
+  const syncPluginsFromDisk = async (currentConfig: GlobalConfig): Promise<GlobalConfig> => {
     try {
-      const v2Data = localStorage.getItem(STORAGE_KEY_V2);
-      if (v2Data) {
-        setProjects(JSON.parse(v2Data));
-      } else {
-        // Check for V1 data migration
-        const v1Data = localStorage.getItem(STORAGE_KEY_V1);
-        if (v1Data) {
-          const p = JSON.parse(v1Data);
-          setProjects([p]);
-          localStorage.setItem(STORAGE_KEY_V2, JSON.stringify([p]));
+      console.log("[PLUGIN_DISCOVERY] Scanning /plugins directory...");
+      const response = await fetch('/__system/list-plugins');
+      if (!response.ok) return currentConfig;
+
+      const diskPlugins: PluginConfig[] = await response.json();
+      if (!diskPlugins || diskPlugins.length === 0) return currentConfig;
+
+      const updatedPlugins = [...(currentConfig.plugins || [])];
+      let changes = false;
+
+      diskPlugins.forEach(diskPlugin => {
+        const existingIdx = updatedPlugins.findIndex(p => p.id === diskPlugin.id);
+        if (existingIdx === -1) {
+          console.log(`[PLUGIN_DISCOVERY] New plugin detected: ${diskPlugin.id}`);
+          updatedPlugins.push({ ...diskPlugin, enabled: true });
+          changes = true;
         } else {
-          // Clean slate
-          setProjects([DEFAULT_PROJECT]);
-          localStorage.setItem(STORAGE_KEY_V2, JSON.stringify([DEFAULT_PROJECT]));
+          const existing = updatedPlugins[existingIdx];
+          updatedPlugins[existingIdx] = {
+            ...diskPlugin,
+            enabled: existing.enabled 
+          };
+          changes = true;
         }
-      }
-      
-      // Load Global Config
-      const configData = localStorage.getItem(STORAGE_KEY_GLOBAL_CONFIG);
-      let loadedConfig: GlobalConfig = {
-        projectIcons: DEFAULT_PROJECT_KEYS,
-        statusIcons: DEFAULT_STATUS_KEYS,
-        plugins: [],
-        theme: 'dark'
-      };
-
-      if (configData) {
-        const parsed = JSON.parse(configData);
-        // Ensure plugins array exists if loading from older config
-        if (!parsed.plugins) parsed.plugins = [];
-        loadedConfig = parsed;
-      }
-
-      // --- AUTO-INSTALL / UPDATE DEFAULT PLUGINS (Jira Theme) ---
-      // Logic: Only install defaults if they haven't been installed (and potentially deleted) before.
-      // AND if they haven't been permanently blocked by the user.
-      const previouslyInstalledIds: string[] = JSON.parse(localStorage.getItem(STORAGE_KEY_INSTALLED_DEFAULTS) || '[]');
-      const blockedPlugins: string[] = JSON.parse(localStorage.getItem(STORAGE_KEY_BLOCKED_PLUGINS) || '[]');
-      
-      const defaultPlugins = [getJiraPlugin()];
-      let defaultsTrackerChanged = false;
-
-      defaultPlugins.forEach(defPlugin => {
-          // 1. Check Blocklist
-          if (blockedPlugins.includes(defPlugin.id)) {
-              return; // Skip blocked plugins entirely
-          }
-
-          const hasBeenInstalled = previouslyInstalledIds.includes(defPlugin.id);
-          const existingPluginIndex = loadedConfig.plugins.findIndex(p => p.id === defPlugin.id);
-
-          if (!hasBeenInstalled) {
-              // Case 1: First time this app version is installing this default plugin
-              if (existingPluginIndex === -1) {
-                  console.log(`Installing default plugin: ${defPlugin.manifest.name}`);
-                  loadedConfig.plugins.push(defPlugin);
-              } else {
-                  // It exists (maybe user manually added it or from legacy version), 
-                  // just update it to ensure it's correct
-                  loadedConfig.plugins[existingPluginIndex] = {
-                      ...defPlugin,
-                      enabled: loadedConfig.plugins[existingPluginIndex].enabled
-                  };
-              }
-              // Mark as installed so we don't force it back if user deletes it later
-              previouslyInstalledIds.push(defPlugin.id);
-              defaultsTrackerChanged = true;
-          } else {
-              // Case 2: We have installed it before.
-              // If it exists in config, update it to patch any code changes, 
-              // BUT respect the previous enable/disable state if possible,
-              // AND DO NOT Re-add if user deleted it (handled by not pushing if index is -1).
-              if (existingPluginIndex !== -1) {
-                  loadedConfig.plugins[existingPluginIndex] = {
-                      ...defPlugin,
-                      enabled: loadedConfig.plugins[existingPluginIndex].enabled
-                  };
-                  console.log(`Updated definition for: ${defPlugin.manifest.name}`);
-              }
-          }
       });
 
-      if (defaultsTrackerChanged) {
-          localStorage.setItem(STORAGE_KEY_INSTALLED_DEFAULTS, JSON.stringify(previouslyInstalledIds));
-      }
-
-      setGlobalConfig(loadedConfig);
-
+      return changes ? { ...currentConfig, plugins: updatedPlugins } : currentConfig;
     } catch (e) {
-      console.warn("Failed to load/migrate projects", e);
-      setProjects([DEFAULT_PROJECT]);
-    } finally {
-      setIsInitialized(true);
+      console.warn("[PLUGIN_DISCOVERY] Disk sync unavailable (static/production mode).");
+      return currentConfig;
     }
+  };
+
+  useEffect(() => {
+    const initialize = async () => {
+      try {
+        const db = await initDB();
+        
+        const existingProjects = getProjectsFromDB();
+        const existingConfig = getConfigFromDB();
+
+        if (existingProjects.length === 0 && !existingConfig) {
+           console.log("[SQLITE] New database detected. Checking for migration...");
+           migrateFromLocalStorage(db);
+        }
+
+        const loadedProjects = getProjectsFromDB();
+        if (loadedProjects.length > 0) {
+          setProjects(loadedProjects);
+        } else {
+          setProjects([DEFAULT_PROJECT]);
+          saveProjectsToDB([DEFAULT_PROJECT]);
+        }
+
+        let loadedConfig = getConfigFromDB();
+        if (!loadedConfig) {
+          loadedConfig = {
+            projectIcons: DEFAULT_PROJECT_KEYS,
+            statusIcons: DEFAULT_STATUS_KEYS,
+            plugins: [],
+            theme: 'dark'
+          };
+        }
+
+        setInitMessage("Discovering Plugins...");
+        loadedConfig = await syncPluginsFromDisk(loadedConfig);
+
+        setGlobalConfig(loadedConfig);
+      } catch (e) {
+        console.warn("Failed to initialize system database", e);
+        setProjects([DEFAULT_PROJECT]);
+      } finally {
+        setIsInitialized(true);
+      }
+    };
+
+    initialize();
   }, []);
 
-  // Persistence
   useEffect(() => {
     if (!isInitialized) return;
-    localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(projects));
+    saveProjectsToDB(projects);
   }, [projects, isInitialized]);
 
   useEffect(() => {
     if (!isInitialized) return;
-    try {
-      localStorage.setItem(STORAGE_KEY_GLOBAL_CONFIG, JSON.stringify(globalConfig));
-    } catch (e) {
-      console.error("Failed to save global config:", e);
-      if ((e as any).name === 'QuotaExceededError') {
-         alert("Storage Quota Exceeded! Your plugin file might be too large to save locally. Please uninstall large plugins or use a URL hosted plugin.");
-      }
-    }
+    saveConfigToDB(globalConfig);
   }, [globalConfig, isInitialized]);
-
-  // --- Actions ---
-
-  const handleToggleTheme = () => {
-    setGlobalConfig(prev => ({
-      ...prev,
-      theme: prev.theme === 'dark' ? 'light' : 'dark'
-    }));
-  };
 
   const handleUpdateGlobalConfig = (newConfig: GlobalConfig) => {
     setGlobalConfig(newConfig);
@@ -217,15 +164,14 @@ const App: React.FC = () => {
       name,
       description,
       systemPrompt: systemPrompt || DEFAULT_PROJECT.systemPrompt,
-      icon: 'Terminal', // Default for new projects
-      steps: [] // Start clean for new projects
+      icon: 'Layout',
+      steps: []
     };
     setProjects(prev => [...prev, newProject]);
     setActiveProjectId(newProject.id);
   };
 
   const handleImportProject = (importedProject: Project) => {
-    // Ensure unique ID to avoid conflicts if importing duplicates
     const uniqueProject = {
       ...importedProject,
       id: `proj_${Date.now()}_imported`,
@@ -234,40 +180,28 @@ const App: React.FC = () => {
     setProjects(prev => [...prev, uniqueProject]);
   };
 
-  // Soft Delete (Move to Archive)
   const handleSoftDeleteProject = (id: string) => {
-    // 1. Find the project first
     const project = projects.find(p => p.id === id);
     const projectName = project ? project.name : 'this project';
 
     setConfirmModal({
       isOpen: true,
       title: "Archive Project?",
-      message: `Are you sure you want to archive "${projectName}"? It will be moved to 'Archived Protocols' and removed from your active dashboard.`,
+      message: `Are you sure you want to archive "${projectName}"?`,
       isDanger: false,
       confirmLabel: "Archive",
       onConfirm: () => {
-        setProjects(prev => prev.map(p => 
-          p.id === id ? { ...p, deletedAt: Date.now() } : p
-        ));
-        
-        // If we are currently viewing this project, go back to dashboard
-        if (activeProjectId === id) {
-          setActiveProjectId(null);
-        }
+        setProjects(prev => prev.map(p => p.id === id ? { ...p, deletedAt: Date.now() } : p));
+        if (activeProjectId === id) setActiveProjectId(null);
         setConfirmModal(null);
       }
     });
   };
 
-  // Restore from Archive
   const handleRestoreProject = (id: string) => {
-    setProjects(prev => prev.map(p => 
-      p.id === id ? { ...p, deletedAt: undefined } : p
-    ));
+    setProjects(prev => prev.map(p => p.id === id ? { ...p, deletedAt: undefined } : p));
   };
 
-  // Permanent Delete (Single Item)
   const handlePermanentDeleteProject = (id: string) => {
     const project = projects.find(p => p.id === id);
     const projectName = project ? project.name : 'this project';
@@ -275,7 +209,7 @@ const App: React.FC = () => {
     setConfirmModal({
       isOpen: true,
       title: "Delete Permanently?",
-      message: `WARNING: This will permanently destroy "${projectName}" and all its history. This action cannot be undone.`,
+      message: `WARNING: This will permanently destroy "${projectName}".`,
       isDanger: true,
       confirmLabel: "Destroy",
       onConfirm: () => {
@@ -285,12 +219,11 @@ const App: React.FC = () => {
     });
   };
 
-  // Clear Archive (Delete All Archived)
   const handleClearArchive = () => {
     setConfirmModal({
       isOpen: true,
       title: "Clear All Archives?",
-      message: "WARNING: This will permanently delete ALL archived projects. This action cannot be undone.",
+      message: "WARNING: This will permanently delete ALL archived projects.",
       isDanger: true,
       confirmLabel: "Clear All",
       onConfirm: () => {
@@ -304,9 +237,17 @@ const App: React.FC = () => {
     setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
   };
 
-  const activeProject = projects.find(p => p.id === activeProjectId);
+  if (!isInitialized) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#050505] text-white font-mono">
+        <Loader2 className="animate-spin text-cyan-500 mb-4" size={48} />
+        <h1 className="text-xl tracking-widest uppercase">{initMessage}</h1>
+        <p className="text-slate-500 mt-2 text-xs">Syncing SQLite state with physical storage...</p>
+      </div>
+    );
+  }
 
-  // --- Render ---
+  const activeProject = projects.find(p => p.id === activeProjectId);
 
   return (
     <div className={globalConfig.theme === 'dark' ? 'dark' : ''}>
@@ -336,7 +277,6 @@ const App: React.FC = () => {
           />
         )}
 
-        {/* Global Confirmation Modal */}
         {confirmModal && (
           <ConfirmModal 
             isOpen={confirmModal.isOpen}

@@ -7,7 +7,7 @@ export default defineConfig({
   build: {
     lib: {
       entry: './src/index.tsx',
-      name: 'GalagaPlugin_JiraTheme',
+      name: 'GalagaPlugin_ProfessionalTheme',
       fileName: () => `index.js`,
       formats: ['umd']
     },
@@ -19,7 +19,7 @@ export default defineConfig({
           'react-dom': 'ReactDOM',
           'lucide-react': 'Lucide'
         },
-        name: 'GalagaPlugin_JiraTheme',
+        name: 'GalagaPlugin_ProfessionalTheme',
         assetFileNames: (assetInfo) => {
           if (assetInfo.name && assetInfo.name.endsWith('.css')) return 'style.css';
           return assetInfo.name || 'assets/[name]-[hash][extname]';

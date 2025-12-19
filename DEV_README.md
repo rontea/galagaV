@@ -1,17 +1,18 @@
+
 # GalagaV - Developer & Feature Guide
 
 ## 🌟 Overview
-GalagaV is a hybrid application combining a robust **Project Management Dashboard** with a fully playable **Arcade Space Shooter**. It is built with **React 18**, **TypeScript**, and **Tailwind CSS**, utilizing **Vite** for the build tooling. It supports offline persistence via LocalStorage and optional cloud features via Firebase and Google Gemini.
+GalagaV is a hybrid application combining a robust **Project Management Dashboard** with a fully playable **Arcade Space Shooter**. It utilizes a SQLite database for persistence with physical file mirroring in `/storage/`.
 
 ---
 
 ## 🔌 Plugin System
-GalagaV supports a dynamic plugin architecture. You can build and upload custom tools or themes as `.zip` archives.
+The system supports a micro-frontend architecture. Plugins can be dynamic tools (new tabs) or themes (global CSS).
 
-*   **Packaging Guide**: See [PLUGIN_PACKAGING.md](./PLUGIN_PACKAGING.md) for full instructions on building and zipping plugins.
-*   **Architecture**: Uses UMD modules and shared window globals (`window.React`, `window.Lucide`) to keep plugins lightweight.
+👉 **[DEDICATED PLUGIN CREATION GUIDE](./PLUGIN_GUIDE.md)**
 
 ---
 
-## 🚀 Features Breakdown
+## 📐 Architecture Blueprint (JSON)
+*Use the Architect Schema Builder plugin to visualize this JSON.*
 ... (rest of the file remains same) ...

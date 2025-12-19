@@ -1,14 +1,15 @@
-# 📦 GalagaV Plugin Packaging Guide
 
-This guide explains how to package a React component (like the **Jira Theme**) into a `.zip` archive that can be uploaded to the GalagaV Dashboard.
+# 📦 GalagaV Plugin Packaging Guide (v1.1)
+
+This guide details the two standard workflows for integrating custom modules into the GalagaV Dashboard.
 
 ---
 
-## 1. Directory Structure
-Your plugin source should be isolated. Here is the standard structure (using the `jira-theme` as an example):
+## 🏗️ 1. Project Structure
+Your plugin source should be a standalone Vite/React project.
 
 ```text
-/plugins/my-plugin
+/my-plugin-source
 ├── package.json
 ├── vite.config.ts
 ├── public/
@@ -20,29 +21,75 @@ Your plugin source should be isolated. Here is the standard structure (using the
 
 ---
 
-## 2. The Manifest (`manifest.json`)
-This file tells the host app how to load your plugin. It **must** reside in your `public/` folder so it ends up in the root of your `dist/` folder.
+## 📄 2. The Manifest (`manifest.json`)
+The manifest is the source of truth for the GalagaV loader. It must be at the **root** of your final package.
 
 ```json
 {
-  "id": "com.developer.myplugin",
-  "name": "My Cool Tool",
-  "version": "1.0.0",
-  "description": "Adds a custom management view.",
+  "id": "com.developer.mytool",
+  "name": "Architect Pro",
+  "version": "1.2.0",
+  "description": "Advanced schema visualization tool.",
   "main": "index.js",
   "style": "style.css",
-  "globalVar": "GalagaPlugin_MyPlugin",
+  "globalVar": "GalagaPlugin_ArchitectPro",
   "type": "tool"
 }
 ```
 
-- **globalVar**: Must match the `name` in your `vite.config.ts`.
-- **type**: `"tool"` adds a tab to the project view; `"theme"` runs invisibly to apply CSS.
+- **globalVar**: The `UMD` library name. This **must** match the `name` property in your `vite.config.ts`.
+- **type**: 
+    - `"tool"`: (Default) Adds a dedicated tab to the project view.
+    - `"theme"`: Runs globally in the background to apply CSS/Logic.
 
 ---
 
-## 3. Build Configuration (UMD)
-GalagaV uses a **Shared Runtime**. You must not bundle React or Lucide. Configure your `vite.config.ts` as follows:
+## 🛠️ 3. Development Workflow (Disk Discovery)
+The fastest way to iterate is to use the **Local Disk Drop** method. GalagaV automatically scans the physical `/plugins` directory on boot.
+
+1.  Create a folder: `[project_root]/plugins/my-dev-plugin/`.
+2.  Copy your `manifest.json`, `index.js`, and `style.css` into this folder.
+3.  **Discovery Priority**: The scanner looks for `manifest.json` in this order:
+    1.  `/public/manifest.json`
+    2.  `/dist/manifest.json`
+    3.  `/manifest.json` (Root)
+4.  Restart GalagaV or click **Sync with Disk** in the Settings menu.
+
+---
+
+## 📦 4. Distribution Workflow (The Zip Upload)
+When sharing your plugin, you must create a "Flat Zip". 
+
+### ⚠️ The Golden Rule: No Nesting
+The `manifest.json` must be at the **absolute root** of the zip file. If the loader sees a folder inside the zip first, it will fail.
+
+#### ✅ Correct Zip Structure:
+```text
+my-plugin.zip
+├── manifest.json
+├── index.js
+└── style.css
+```
+
+#### ❌ Incorrect Zip Structure:
+```text
+my-plugin.zip
+└── dist/                <-- Fails!
+    ├── manifest.json
+    └── index.js
+```
+
+### 🚀 Packaging Steps:
+1.  Run `npm run build`.
+2.  Navigate **into** your `dist/` folder.
+3.  Select all files inside `dist/`.
+4.  Right-click -> **Compress** / **Add to Archive**.
+5.  Upload the resulting `.zip` via **Settings > Plugins > Upload**.
+
+---
+
+## ⚙️ 5. Build Config (`vite.config.ts`)
+Use this boilerplate to ensure your filenames match the manifest and libraries aren't bundled.
 
 ```typescript
 import { defineConfig } from 'vite';
@@ -53,54 +100,25 @@ export default defineConfig({
   build: {
     lib: {
       entry: './src/index.tsx',
-      name: 'GalagaPlugin_MyPlugin', // Matches manifest.globalVar
+      name: 'GalagaPlugin_MyTool', // Must match manifest.globalVar
       fileName: () => `index.js`,
       formats: ['umd']
     },
     rollupOptions: {
-      external: ['react', 'react-dom', 'lucide-react'], // Don't bundle these!
+      external: ['react', 'react-dom', 'lucide-react'],
       output: {
         globals: {
           react: 'React',
           'react-dom': 'ReactDOM',
           'lucide-react': 'Lucide'
+        },
+        // Ensures style.css is not hashed
+        assetFileNames: (assetInfo) => {
+          if (assetInfo.name && assetInfo.name.endsWith('.css')) return 'style.css';
+          return assetInfo.name || 'assets/[name]-[hash][extname]';
         }
       }
     }
   }
 });
 ```
-
----
-
-## 4. Creating the Zip (The "No Nesting" Rule)
-The GalagaV loader expects the `manifest.json` to be at the **root** of the Zip file.
-
-1.  Run your build: `npm run build`.
-2.  Open your `dist/` folder.
-3.  **Select the files inside** (e.g., `index.js`, `manifest.json`, `style.css`).
-4.  Right-click and select **Compress** or **Send to Zip**.
-5.  ❌ **DO NOT** zip the `dist/` folder itself.
-6.  ✅ **DO** zip the files directly.
-
----
-
-## 5. Installation
-1.  Open the **GalagaV Dashboard**.
-2.  Click the **Settings** (Gear Icon).
-3.  Go to the **Plugins** tab.
-4.  Drag your `.zip` file into the **Upload New Plugin** area.
-5.  Click **Install** in the Local Repository section.
-6.  Toggle the plugin to **Active**.
-
----
-
-## 🛠 Shared Props
-Your plugin component will receive the following props from the host:
-
-| Prop | Type | Description |
-| :--- | :--- | :--- |
-| `project` | `Project` | The current active project data. |
-| `onSave` | `(p: Project) => void` | Function to update project data. |
-| `theme` | `'light' \| 'dark'` | The current UI theme. |
-| `onNotify` | `(msg: string) => void` | Send a toast/log to the host. |

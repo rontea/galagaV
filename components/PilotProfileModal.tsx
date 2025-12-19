@@ -12,7 +12,8 @@ interface PilotProfileModalProps {
 
 const PilotProfileModal: React.FC<PilotProfileModalProps> = ({ isOpen, onClose, userId }) => {
   const [pilotName, setPilotName] = useState('');
-  const [theme, setTheme] = useState<'retro' | 'modern'>('retro');
+  // Fix: Use UserProfile['themePreference'] to allow 'light' and 'dark' values from saved profile
+  const [theme, setTheme] = useState<UserProfile['themePreference']>('retro');
   const [loadingAi, setLoadingAi] = useState(false);
 
   useEffect(() => {

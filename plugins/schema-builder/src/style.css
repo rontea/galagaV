@@ -1,0 +1,222 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+
+.schema-canvas {
+  background-color: #f8fafc; /* slate-50 */
+  background-image: radial-gradient(#cbd5e1 0.8px, transparent 0.8px); /* slate-300 */
+  background-size: 24px 24px;
+  position: relative;
+  overflow: auto;
+  cursor: crosshair;
+}
+
+.dark .schema-canvas {
+  background-color: #050505; /* GalagaV dark bg */
+  background-image: radial-gradient(#1e293b 1px, transparent 1px); /* slate-800 */
+}
+
+.schema-table {
+  position: absolute;
+  min-width: 240px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0; /* slate-200 */
+  cursor: move;
+  user-select: none;
+  z-index: 10;
+  font-family: inherit;
+  overflow: hidden;
+  transition: transform 0.1s ease-out, box-shadow 0.2s, border-color 0.2s;
+}
+
+.dark .schema-table {
+  background: rgba(15, 23, 42, 0.8); /* slate-900/80 */
+  backdrop-filter: blur(8px);
+  border-color: #1e293b; /* slate-800 */
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+}
+
+.schema-table:hover {
+  border-color: #94a3b8; /* slate-400 */
+}
+
+.dark .schema-table:hover {
+  border-color: #334155; /* slate-700 */
+}
+
+.schema-table.active {
+  border-color: #06b6d4; /* cyan-500 */
+  box-shadow: 0 0 15px rgba(6, 182, 212, 0.3);
+}
+
+.dark .schema-table.active {
+  border-color: #06b6d4;
+  box-shadow: 0 0 20px rgba(6, 182, 212, 0.4);
+}
+
+.table-header {
+  padding: 10px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  background: #0891b2; /* cyan-600 */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dark .table-header {
+  border-color: #164e63; /* cyan-900 */
+  background: #0e7490; /* cyan-700 */
+}
+
+.table-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 0.1em;
+  font-family: 'Orbitron', sans-serif;
+  text-transform: uppercase;
+}
+
+.column-list {
+  padding: 4px 0;
+}
+
+.column-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  font-size: 12px;
+  color: #334155; /* slate-700 */
+  transition: background 0.15s;
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+}
+
+.dark .column-row {
+  color: #94a3b8; /* slate-400 */
+}
+
+.column-row:hover {
+  background: #f8fafc; /* slate-50 */
+}
+
+.dark .column-row:hover {
+  background: rgba(30, 41, 59, 0.5); /* slate-800/50 */
+  color: #f1f5f9;
+}
+
+.column-row.selected {
+  background: #ecfeff; /* cyan-50 */
+  color: #0891b2; /* cyan-600 */
+}
+
+.dark .column-row.selected {
+  background: rgba(22, 78, 99, 0.3); /* cyan-900/30 */
+  color: #22d3ee; /* cyan-400 */
+}
+
+.indicator-pk {
+  color: #f59e0b; /* amber-500 */
+  margin-right: 6px;
+}
+
+.indicator-nn {
+  color: #ef4444; /* red-500 */
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 0;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.type-metadata {
+  font-family: 'monospace';
+  font-size: 10px;
+  color: #64748b; /* slate-500 */
+  background: #f1f5f9; /* slate-100 */
+  padding: 1px 5px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.dark .type-metadata {
+  background: #0f172a; /* slate-950 */
+  color: #475569; /* slate-600 */
+}
+
+.table-footer {
+  padding: 8px 14px;
+  border-top: 1px solid #f1f5f9;
+  background: #ffffff;
+}
+
+.dark .table-footer {
+  border-color: #1e293b;
+  background: transparent;
+}
+
+.btn-add-field {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748b;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: all 0.2s;
+}
+
+.btn-add-field:hover {
+  background: #f1f5f9;
+  color: #0891b2;
+}
+
+.dark .btn-add-field:hover {
+  background: #1e293b;
+  color: #22d3ee;
+}
+
+/* Sidebar Panel */
+.sidebar-panel {
+  background: #ffffff;
+}
+
+.dark .sidebar-panel {
+  background: #020617; /* slate-950 */
+}
+
+.sidebar-header {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.sidebar-input {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 13px;
+  background: #ffffff;
+  transition: border-color 0.2s, ring 0.2s;
+}
+
+.dark .sidebar-input {
+  background: #050505;
+  border-color: #1e293b;
+  color: #f1f5f9;
+}
+
+.sidebar-input:focus {
+  border-color: #06b6d4;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.2);
+}
